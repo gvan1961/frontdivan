@@ -1,0 +1,16 @@
+# Angular
+node_modules/
+dist/
+.angular/
+.ng-cache/
+*.log
+.env
+
+
+Para futuros commits:
+
+Após o push, acesse https://github.com/gvan1961/ang121025 para ver os arquivos. 
+Para atualizações futuras: git add ., git commit -m "mensagem", git push.
+
+
+

@@ -1,0 +1,41 @@
+export enum StatusApartamento {
+  DISPONIVEL = 'DISPONIVEL',
+  OCUPADO = 'OCUPADO',
+  LIMPEZA = 'LIMPEZA',
+  PRE_RESERVA = 'PRE_RESERVA',
+  MANUTENCAO = 'MANUTENCAO',
+  INDISPONIVEL = 'INDISPONIVEL'
+}
+
+export enum TipoApartamento {
+  A = 'A',
+  B = 'B',
+  C = 'C'
+}
+
+export enum StatusReserva {
+  ATIVA = 'ATIVA',
+  CANCELADA = 'CANCELADA',
+  FINALIZADA = 'FINALIZADA'
+}
+
+export enum FormaPagamento {
+  DINHEIRO = 'DINHEIRO',
+  PIX = 'PIX',
+  CARTAO_DEBITO = 'CARTAO_DEBITO',
+  CARTAO_CREDITO = 'CARTAO_CREDITO',
+  TRANSFERENCIA_BANCARIA = 'TRANSFERENCIA_BANCARIA',
+  FATURADO = 'FATURADO'
+}
+
+export enum StatusLancamento {
+  DIARIA = 'DIARIA',
+  PRODUTO = 'PRODUTO',
+  PAGAMENTO = 'PAGAMENTO',
+  ESTORNO = 'ESTORNO'
+}
+
+export enum TipoVenda {
+  VISTA = 'VISTA',
+  APARTAMENTO = 'APARTAMENTO'
+}
