@@ -1,0 +1,146 @@
+<div class="abertura-caixa-container">
+  
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LOADING -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div *ngIf="carregando && !caixaAberto" class="loading-container">
+    <div class="spinner"></div>
+    <p>Verificando caixa...</p>
+  </div>
+  
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- CAIXA JÁ ABERTO (SEM DUPLICAR!) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div *ngIf="caixaAberto && !carregando" class="caixa-aberto-card">
+    <div class="card-header caixa-aberto">
+      <h2>✅ CAIXA JÁ ESTÁ ABERTO</h2>
+    </div>
+    
+    <div class="card-body">
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="label">Caixa ID:</span>
+          <span class="valor">#{{ caixaAtual?.id }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Turno:</span>
+          <span class="valor">{{ caixaAtual?.turno }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Aberto em:</span>
+          <span class="valor">{{ formatarData(caixaAtual?.dataHoraAbertura) }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Usuário:</span>
+          <span class="valor">{{ caixaAtual?.usuarioNome || 'N/A' }}</span>
+        </div>
+      </div>
+      
+      <div class="acoes">
+        <button 
+          type="button"
+          class="btn btn-danger" 
+          (click)="irParaFechamento()">
+          🔒 Ir para Fechamento de Caixa
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- FORMULÁRIO DE ABERTURA -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div *ngIf="!caixaAberto && !carregando" class="abertura-caixa-card">
+    <div class="card-header">
+      <h2>🔓 Abrir Novo Caixa</h2>
+      <p class="subtitle">{{ dataHoraAtual | date:'dd/MM/yyyy HH:mm' }}</p>
+    </div>
+    
+    <div class="card-body">
+      <form (ngSubmit)="abrirCaixa()" #formAbertura="ngForm">
+        
+        <!-- TURNO -->
+        <div class="form-group">
+          <label for="turno" class="form-label">
+            <span class="icon">🕐</span>
+            Turno *
+          </label>
+          <select
+            id="turno"
+            name="turno"
+            class="form-control"
+            [(ngModel)]="turnoSelecionado"
+            required
+            [disabled]="carregando"
+          >
+            <option *ngFor="let t of turnos" [value]="t.valor">
+              {{ t.label }}
+            </option>
+          </select>
+        </div>
+        
+        <!-- VALOR ABERTURA -->
+        <div class="form-group">
+          <label for="valorAbertura" class="form-label">
+            <span class="icon">💵</span>
+            Valor de Abertura (opcional)
+          </label>
+          <input
+            type="number"
+            id="valorAbertura"
+            name="valorAbertura"
+            class="form-control"
+            [(ngModel)]="valorAbertura"
+            placeholder="0,00"
+            step="0.01"
+            min="0"
+            [disabled]="carregando"
+          />
+          <small class="form-hint">Valor em dinheiro no caixa</small>
+        </div>
+        
+        <!-- OBSERVAÇÕES -->
+        <div class="form-group">
+          <label for="observacoes" class="form-label">
+            <span class="icon">📝</span>
+            Observações (opcional)
+          </label>
+          <textarea
+            id="observacoes"
+            name="observacoes"
+            class="form-control"
+            [(ngModel)]="observacoes"
+            placeholder="Digite observações sobre a abertura do caixa"
+            rows="3"
+            maxlength="500"
+            [disabled]="carregando"
+          ></textarea>
+          <small class="form-hint">{{ observacoes.length }}/500 caracteres</small>
+        </div>
+        
+        <!-- BOTÕES -->
+        <div class="form-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="limparFormulario()"
+            [disabled]="carregando"
+          >
+            🔄 Limpar
+          </button>
+          
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="carregando || !formAbertura.valid"
+          >
+            <span *ngIf="!carregando">✅ Abrir Caixa</span>
+            <span *ngIf="carregando">⏳ Abrindo...</span>
+          </button>
+        </div>
+        
+      </form>
+    </div>
+  </div>
+  
+</div>

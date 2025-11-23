@@ -115,28 +115,28 @@ import { Diaria } from '../../models/diaria.model';
           </div>
 
           <div class="form-row">
-            <div class="form-group">
-              <label>🗓️ Data e Hora de Check-in *</label>
-              <input type="datetime-local" 
-                     [(ngModel)]="reserva.dataCheckin" 
-                     name="dataCheckin" required
-                     (change)="calcularDiarias()" />
-              <small class="field-help" *ngIf="reserva.dataCheckin">
-                {{ formatarDataHora(reserva.dataCheckin) }}
-              </small>
-            </div>
+  <div class="form-group">
+    <label>🗓️ Data e Hora de Check-in *</label>
+    <input type="datetime-local" 
+           [(ngModel)]="reserva.dataCheckin" 
+           name="dataCheckin" required
+           (change)="onDataChange()" />  <!-- ✅ MUDOU AQUI -->
+    <small class="field-help" *ngIf="reserva.dataCheckin">
+      {{ formatarDataHora(reserva.dataCheckin) }}
+    </small>
+  </div>
 
-            <div class="form-group">
-              <label>🗓️ Data e Hora de Check-out *</label>
-              <input type="datetime-local" 
-                     [(ngModel)]="reserva.dataCheckout" 
-                     name="dataCheckout" required
-                     (change)="calcularDiarias()" />
-              <small class="field-help" *ngIf="reserva.dataCheckout && quantidadeDiarias > 0">
-                {{ formatarDataHora(reserva.dataCheckout) }} - Total: {{ quantidadeDiarias }} diária(s)
-              </small>
-            </div>
-          </div>
+  <div class="form-group">
+    <label>🗓️ Data e Hora de Check-out *</label>
+    <input type="datetime-local" 
+           [(ngModel)]="reserva.dataCheckout" 
+           name="dataCheckout" required
+           (change)="onDataChange()" />  <!-- ✅ MUDOU AQUI -->
+    <small class="field-help" *ngIf="reserva.dataCheckout && quantidadeDiarias > 0">
+      {{ formatarDataHora(reserva.dataCheckout) }} - Total: {{ quantidadeDiarias }} diária(s)
+    </small>
+  </div>
+</div>
 
           <div class="info-box" *ngIf="valorEstimado > 0">
             <strong>💰 Resumo da Reserva:</strong>
@@ -593,55 +593,47 @@ export class ReservaFormApp implements OnInit {
 
 ngOnInit(): void {
   console.log('🔵 Inicializando ReservaForm');
-  this.setDatasPadrao();
-  this.carregarApartamentos();
   
-  // ✅ CAPTURAR PARÂMETROS DA URL
+  // 1️⃣ Primeiro definir datas padrão
+  this.setDatasPadrao();
+  
+  // 2️⃣ DEPOIS capturar parâmetros da URL (pode sobrescrever datas)
   this.route.queryParams.subscribe(params => {
     console.log('📋 Query Params recebidos:', params);
 
-    // ✅ VERIFICAR SE VEIO DO MAPA
+    // Verificar se veio do mapa
     if (params['bloqueado'] === 'true') {
       this.apartamentoBloqueado = true;
-      this.voltarParaMapa = true;  // ✅ ADICIONE ESTA LINHA
+      this.voltarParaMapa = true;
       console.log('🔒 Apartamento bloqueado (veio do mapa)');
-      console.log('🗺️ Vai retornar ao mapa após salvar');
     }
 
-    // ✅ CAPTURAR APARTAMENTO ID
-    if (params['apartamentoId']) {
-      const apartamentoId = Number(params['apartamentoId']);
-      console.log('🏢 Apartamento pré-selecionado:', apartamentoId);
-      
-      // Aguardar apartamentos carregarem
-      setTimeout(() => {
-        this.reserva.apartamentoId = apartamentoId;
-        this.onApartamentoChange();
-        console.log('✅ Apartamento selecionado automaticamente');
-      }, 500);
-    }
-
-    // ✅ CAPTURAR DATA DE CHECK-IN
+    // Capturar data de check-in (se veio do mapa)
     if (params['dataCheckin']) {
       const dataCheckin = new Date(params['dataCheckin'] + 'T14:00:00');
       this.reserva.dataCheckin = this.formatDateTimeLocal(dataCheckin);
       
-      // Calcular check-out (1 dia depois às 13h)
       const dataCheckout = new Date(dataCheckin);
       dataCheckout.setDate(dataCheckout.getDate() + 1);
       dataCheckout.setHours(13, 0, 0, 0);
       this.reserva.dataCheckout = this.formatDateTimeLocal(dataCheckout);
       
-      console.log('📅 Datas pré-preenchidas do mapa');
-      console.log('   Check-in:', this.reserva.dataCheckin);
-      console.log('   Check-out:', this.reserva.dataCheckout);
-
-      // Calcular diárias
-      setTimeout(() => {
-        this.calcularDiarias();
-      }, 800);
+      console.log('📅 Datas do mapa:', this.reserva.dataCheckin, this.reserva.dataCheckout);
     }
+    
+    // 3️⃣ AGORA SIM carregar apartamentos (com as datas corretas)
+    setTimeout(() => {
+      this.carregarApartamentos();
+    }, 300);
   });
+}
+
+  onDataChange(): void {
+  console.log('📅 Datas alteradas - recarregando apartamentos');
+  this.reserva.apartamentoId = 0; // Limpar seleção
+  this.apartamentoSelecionado = null;
+  this.carregarApartamentos();
+  this.calcularDiarias();
 }
 
 
@@ -680,31 +672,54 @@ ngOnInit(): void {
   }
 
  carregarApartamentos(): void {
-  console.log('📋 Carregando apartamentos...');
-  console.log('   Bloqueado (do mapa)?', this.apartamentoBloqueado);
+  console.log('📋 Carregando apartamentos disponíveis...');
+  console.log('   Check-in:', this.reserva.dataCheckin);
+  console.log('   Check-out:', this.reserva.dataCheckout);
   
-  this.http.get<any[]>('http://localhost:8080/api/apartamentos').subscribe({
-    next: (data) => {
-      // ✅ SE VEIO DO MAPA (bloqueado), CARREGAR **TODOS** OS APARTAMENTOS
-      // Porque queremos permitir reserva futura mesmo em apartamento ocupado
-      if (this.apartamentoBloqueado) {
+  // ✅ SE JÁ TEM DATAS, BUSCAR DISPONÍVEIS PARA O PERÍODO
+  if (this.reserva.dataCheckin && this.reserva.dataCheckout) {
+    const checkin = new Date(this.reserva.dataCheckin).toISOString();
+    const checkout = new Date(this.reserva.dataCheckout).toISOString();
+    
+    const url = `http://localhost:8080/api/apartamentos/disponiveis-para-reserva?dataCheckin=${checkin}&dataCheckout=${checkout}`;
+    
+    console.log('🔍 Buscando apartamentos disponíveis:', url);
+    
+    this.http.get<any[]>(url).subscribe({
+      next: (data) => {
         this.apartamentos = data;
-        console.log('✅ Apartamentos carregados (TODOS - do mapa):', this.apartamentos.length);
-      } else {
-        // Se não veio do mapa, filtrar apenas disponíveis
-        this.apartamentos = data.filter(apt => 
-          apt.status === 'DISPONIVEL' || 
-          apt.status === 'OCUPADO' ||  // ✅ Permitir ocupado também
-          apt.status === 'PRE_RESERVA'
-        );
-        console.log('✅ Apartamentos carregados (filtrados):', this.apartamentos.length);
+        console.log('✅ Apartamentos DISPONÍVEIS carregados:', this.apartamentos.length);
+        
+        // ✅ Se veio do mapa com apartamento pré-selecionado
+        this.route.queryParams.subscribe(params => {
+          if (params['apartamentoId']) {
+            const apartamentoId = Number(params['apartamentoId']);
+            
+            // Verificar se o apartamento está na lista de disponíveis
+            const apartamentoDisponivel = this.apartamentos.find(a => a.id === apartamentoId);
+            
+            if (apartamentoDisponivel) {
+              this.reserva.apartamentoId = apartamentoId;
+              this.onApartamentoChange();
+              console.log('✅ Apartamento do mapa selecionado:', apartamentoId);
+            } else {
+              console.warn('⚠️ Apartamento do mapa não está disponível para este período');
+              alert('⚠️ O apartamento selecionado não está disponível para este período');
+            }
+          }
+        });
+      },
+      error: (err) => {
+        console.error('❌ Erro ao carregar apartamentos:', err);
+        alert('❌ Erro ao carregar apartamentos disponíveis');
+        this.apartamentos = [];
       }
-    },
-    error: (err) => {
-      console.error('❌ Erro ao carregar apartamentos:', err);
-      alert('❌ Erro ao carregar apartamentos');
-    }
-  });
+    });
+  } else {
+    // Se não tem datas ainda, não carregar apartamentos
+    console.log('⏳ Aguardando datas para buscar apartamentos');
+    this.apartamentos = [];
+  }
 }
 
   // ✅ BUSCA DE CLIENTE - AGORA USANDO O BACKEND

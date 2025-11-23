@@ -1,0 +1,130 @@
+<div class="pagamento-container">
+  
+  <div class="card-header">
+    <h2>💰 Processar Pagamento</h2>
+    <p class="subtitle">Reserva #{{ reservaId }}</p>
+  </div>
+
+  <div class="card-body">
+    
+    <form (ngSubmit)="processarPagamento()" #formPagamento="ngForm">
+      
+      <!-- VALOR -->
+      <div class="form-group">
+        <label for="valor" class="form-label">
+          <span class="icon">💵</span>
+          Valor do Pagamento *
+        </label>
+        <input
+          type="number"
+          id="valor"
+          name="valor"
+          class="form-control"
+          [(ngModel)]="valorPagamento"
+          placeholder="0,00"
+          step="0.01"
+          min="0.01"
+          required
+          [disabled]="loading"
+        />
+        <small class="form-hint">Digite o valor a ser pago</small>
+      </div>
+
+      <!-- FORMA DE PAGAMENTO -->
+      <div class="form-group">
+        <label for="formaPagamento" class="form-label">
+          <span class="icon">💳</span>
+          Forma de Pagamento *
+        </label>
+        <select
+          id="formaPagamento"
+          name="formaPagamento"
+          class="form-control"
+          [(ngModel)]="formaSelecionada"
+          required
+          [disabled]="loading"
+        >
+          <option *ngFor="let forma of formasPagamento" [value]="forma.valor">
+            {{ forma.label }}
+          </option>
+        </select>
+      </div>
+
+      <!-- OBSERVAÇÃO -->
+      <div class="form-group">
+        <label for="observacao" class="form-label">
+          <span class="icon">📝</span>
+          Observação (opcional)
+        </label>
+        <textarea
+          id="observacao"
+          name="observacao"
+          class="form-control"
+          [(ngModel)]="observacao"
+          placeholder="Digite uma observação (opcional)"
+          rows="3"
+          maxlength="500"
+          [disabled]="loading"
+        ></textarea>
+        <small class="form-hint">{{ observacao.length }}/500 caracteres</small>
+      </div>
+
+      <!-- BOTÕES -->
+      <div class="form-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="limparFormulario()"
+          [disabled]="loading"
+        >
+          🔄 Limpar
+        </button>
+        
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="loading || !formPagamento.valid || valorPagamento <= 0"
+        >
+          <span *ngIf="!loading">✅ Processar Pagamento</span>
+          <span *ngIf="loading">⏳ Processando...</span>
+        </button>
+      </div>
+
+    </form>
+
+  </div>
+
+  <!-- LISTA DE PAGAMENTOS -->
+  <div class="card-footer" *ngIf="pagamentos.length > 0">
+    <h3>📋 Pagamentos Realizados</h3>
+
+    <div class="pagamentos-list">
+      <div *ngFor="let pagamento of pagamentos" class="pagamento-item">
+        <div class="pagamento-info">
+          <strong>{{ formatarFormaPagamento(pagamento.formaPagamento) }}</strong>
+          <small>{{ formatarData(pagamento.dataHoraPagamento) }}</small>
+          <p *ngIf="pagamento.observacao" class="observacao">
+            {{ pagamento.observacao }}
+          </p>
+        </div>
+        <div class="pagamento-valor">
+          {{ formatarMoeda(pagamento.valor) }}
+        </div>
+      </div>
+
+      <div class="pagamento-total">
+        <span>TOTAL RECEBIDO:</span>
+        <strong>{{ formatarMoeda(calcularTotalPagamentos()) }}</strong>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MENSAGEM SE NÃO HOUVER PAGAMENTOS -->
+  <div class="card-footer" *ngIf="pagamentos.length === 0">
+    <div class="empty-state">
+      <p>📭 Nenhum pagamento registrado ainda.</p>
+    </div>
+  </div>
+
+</div>

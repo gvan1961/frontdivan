@@ -3,6 +3,14 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { AuthService } from '../../services/auth.service';
+
+interface DescontoSimples {
+  id: number;
+  valor: number;
+  motivo: string;
+  dataHoraDesconto: string;
+}
 
 interface ReservaDetalhes {
   id: number;
@@ -31,6 +39,7 @@ interface ReservaDetalhes {
   totalApagar: number;
   totalProduto?: number;
   desconto?: number;
+  descontos?: DescontoSimples[];
   totalConsumo?: number;
   status: string;
   extratos?: any[];
@@ -166,37 +175,73 @@ interface Apartamento {
             </div>
           </div>
 
-          <!-- FINANCEIRO -->
-          <div class="card">
-            <h2>💰 Financeiro</h2>
-            <div class="info-item">
-              <span class="label">Valor Diária:</span>
-              <span class="value">R$ {{ formatarMoeda(reserva.valorDiaria) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">Total Diárias:</span>
-              <span class="value">R$ {{ formatarMoeda(reserva.totalDiaria) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">Consumo:</span>
-              <span class="value">R$ {{ formatarMoeda(reserva.totalProduto || 0) }}</span>
-            </div>
-            <div class="info-item destaque">
-              <span class="label">Total Hospedagem:</span>
-              <span class="value">R$ {{ formatarMoeda(reserva.totalHospedagem) }}</span>
-            </div>
-            <div class="info-item">
-              <span class="label">Recebido:</span>
-              <span class="value valor-positivo">R$ {{ formatarMoeda(reserva.totalRecebido) }}</span>
-            </div>
-            <div class="info-item destaque">
-              <span class="label">Saldo:</span>
-              <span class="value" [class.valor-negativo]="(reserva.totalApagar || 0) > 0">
-                R$ {{ formatarMoeda(reserva.totalApagar) }}
-              </span>
-            </div>
-          </div>
-        </div>
+ <!-- FINANCEIRO -->
+<div class="card">
+  <h2>💰 Financeiro</h2>
+  
+  <div class="info-item">
+    <span class="label">Valor Diária:</span>
+    <span class="value">R$ {{ formatarMoeda(reserva.valorDiaria) }}</span>
+  </div>
+  
+  <div class="info-item">
+    <span class="label">Total Diárias:</span>
+    <span class="value">R$ {{ formatarMoeda(reserva.totalDiaria) }}</span>
+  </div>
+  
+  <div class="info-item">
+    <span class="label">Consumo:</span>
+    <span class="value">R$ {{ formatarMoeda(reserva.totalProduto || 0) }}</span>
+  </div>
+  
+  <!-- ✅ LINHA DE DESCONTOS COM BOTÃO ADICIONAR -->
+  <div class="info-item-com-botao">
+    <div class="info-item">
+      <span class="label">Descontos:</span>
+      <span class="value valor-positivo">- R$ {{ calcularTotalDescontos() }}</span>
+    </div>
+    <button 
+      *ngIf="reserva.status === 'ATIVA'"
+      class="btn-mini btn-desconto"
+      (click)="abrirModalDesconto()"
+      title="Adicionar desconto">
+      ➕
+    </button>
+  </div>
+  
+  <!-- ✅ LISTA DE DESCONTOS APLICADOS -->
+  <div *ngIf="reserva.descontos && reserva.descontos.length > 0" class="lista-descontos">
+    <div *ngFor="let desc of reserva.descontos" class="desconto-item">
+      <span class="desconto-valor">- R$ {{ formatarMoeda(desc.valor) }}</span>
+      <span class="desconto-motivo">{{ desc.motivo || 'Sem motivo' }}</span>
+      <button 
+        *ngIf="reserva.status === 'ATIVA'"
+        class="btn-remover-desc"
+        (click)="removerDesconto(desc.id)"
+        title="Remover este desconto">
+        🗑️
+      </button>
+    </div>
+  </div>
+  
+  <div class="info-item destaque">
+    <span class="label">Total Hospedagem:</span>
+    <span class="value">R$ {{ formatarMoeda(reserva.totalHospedagem) }}</span>
+  </div>
+  
+  <div class="info-item">
+    <span class="label">Recebido:</span>
+    <span class="value valor-positivo">R$ {{ formatarMoeda(reserva.totalRecebido) }}</span>
+  </div>
+  
+  <div class="info-item destaque">
+    <span class="label">Saldo:</span>
+    <span class="value" [class.valor-negativo]="(reserva.totalApagar || 0) > 0">
+      R$ {{ formatarMoeda(reserva.totalApagar) }}
+    </span>
+  </div>
+</div>
+
 
         <!-- EXTRATO -->
         <div class="card extrato-card" *ngIf="reserva.extratos && reserva.extratos.length > 0">
@@ -209,6 +254,7 @@ interface Apartamento {
                 <th>Qtd</th>
                 <th>Valor Unit.</th>
                 <th>Total</th>
+                <th *ngIf="reserva.status === 'ATIVA'">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -225,6 +271,15 @@ interface Apartamento {
                 <td [class.valor-negativo]="extrato.totalLancamento < 0"
                     [class.valor-positivo]="extrato.totalLancamento > 0">
                   R$ {{ formatarMoeda(extrato.totalLancamento) }}
+                </td>
+                <td *ngIf="reserva.status === 'ATIVA'">
+                  <button 
+                    *ngIf="extrato.statusLancamento === 'PRODUTO' && extrato.totalLancamento > 0"
+                    class="btn-estornar"
+                    (click)="abrirModalEstorno(extrato)"
+                    title="Estornar este lançamento">
+                    ❌ Estornar
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -256,44 +311,60 @@ interface Apartamento {
         <div class="card acoes-card">
           <h2>⚙️ Ações</h2>
           <div class="botoes-acoes">
-            <!-- BOTÃO DOCUMENTAR CHECK-IN -->
+            <!-- BOTÃO IMPRIMIR CHECK-IN -->
             <button class="btn-acao btn-checkin" 
                     *ngIf="reserva.status === 'ATIVA'"
-                    (click)="abrirModalCheckin()">
-              📄 Documentar Check-in
+                    (click)="imprimirCheckin()">
+              🖨️ Imprimir Check-in
             </button>
 
+            <!-- BOTÃO COMANDA DE CONSUMO -->
+            <button class="btn-acao btn-comanda" 
+                    *ngIf="reserva.status === 'ATIVA'"
+                    (click)="abrirComanda()">
+              🏨 Comanda de Consumo
+            </button>
+
+            <!-- BOTÃO REGISTRAR PAGAMENTO -->
             <button class="btn-acao btn-pagamento" 
                     *ngIf="reserva.status === 'ATIVA' && (reserva.totalApagar || 0) > 0"
                     (click)="abrirModalPagamento()">
               💳 Registrar Pagamento
             </button>
             
+            <!-- BOTÃO ADICIONAR CONSUMO -->
             <button class="btn-acao btn-consumo" 
                     *ngIf="reserva.status === 'ATIVA'"
                     (click)="abrirModalConsumo()">
               🛒 Adicionar Consumo
             </button>
             
+            <!-- BOTÃO TRANSFERIR APARTAMENTO -->
             <button class="btn-acao btn-transferir" 
                     *ngIf="reserva.status === 'ATIVA'"
                     (click)="abrirModalTransferencia()">
               🔄 Transferir Apartamento
             </button>
             
-            <button class="btn-acao btn-finalizar" 
+            <!-- BOTÃO FINALIZAR (INTELIGENTE - Paga ou Faturada) -->
+            <button class="btn-acao" 
                     *ngIf="reserva.status === 'ATIVA'"
-                    (click)="finalizarReserva()">
-              ✅ Finalizar Faturada
+                    [ngClass]="{
+                      'btn-finalizar-paga': (reserva.totalApagar || 0) === 0,
+                      'btn-finalizar': (reserva.totalApagar || 0) > 0
+                    }"
+                    (click)="finalizarCheckout()">
+              {{ (reserva.totalApagar || 0) === 0 ? '💚 Finalizar Paga' : '✅ Finalizar Faturada' }}
             </button>
             
-           <!-- BOTÃO IMPRIMIR RECIBO/FATURA -->
-             <button class="btn-acao btn-recibo" 
-             *ngIf="reserva.status === 'FINALIZADA'"
-             (click)="imprimirRecibo()">
-             📄 {{ (reserva.totalApagar || 0) > 0 ? 'Imprimir Fatura' : 'Imprimir Recibo' }}
-             </button>
+            <!-- BOTÃO IMPRIMIR RECIBO/FATURA -->
+            <button class="btn-acao btn-recibo" 
+                    *ngIf="reserva.status === 'FINALIZADA'"
+                    (click)="imprimirRecibo()">
+              📄 {{ (reserva.totalApagar || 0) > 0 ? 'Imprimir Fatura' : 'Imprimir Recibo' }}
+            </button>
             
+            <!-- BOTÃO CANCELAR RESERVA -->
             <button class="btn-acao btn-cancelar" 
                     *ngIf="reserva.status === 'ATIVA'"
                     (click)="cancelarReserva()">
@@ -301,232 +372,304 @@ interface Apartamento {
             </button>
           </div>
         </div>
-      </div>
 
-      <!-- MODAL DOCUMENTAR CHECK-IN -->
-      <div class="modal-overlay" *ngIf="modalCheckin" (click)="fecharModalCheckin()">
-        <div class="modal-content" (click)="$event.stopPropagation()">
-          <h2>📄 Documentar Check-in</h2>
-          
-          <div class="info-box">
-            <p><strong>Reserva:</strong> #{{ reserva?.id }}</p>
-            <p><strong>Cliente:</strong> {{ reserva?.cliente?.nome }}</p>
-            <p><strong>Apartamento:</strong> {{ reserva?.apartamento?.numeroApartamento }}</p>
-          </div>
+        <!-- MODAL ALTERAR CHECKOUT -->
+        <div class="modal-overlay" *ngIf="modalAlterarCheckout" (click)="fecharModalAlterarCheckout()">
+          <div class="modal-content" (click)="$event.stopPropagation()">
+            <h2>📅 Alterar Data de Check-out</h2>
+            
+            <div class="info-box">
+              <p><strong>Check-in:</strong> {{ formatarData(reserva?.dataCheckin) }}</p>
+              <p><strong>Check-out atual:</strong> {{ formatarData(reserva?.dataCheckout) }}</p>
+            </div>
 
-          <div class="campo">
-            <label>Observações</label>
-            <textarea 
-              [(ngModel)]="observacoesCheckin" 
-              rows="4"
-              placeholder="Digite observações sobre a reserva (opcional)..."></textarea>
-            <small>Informações adicionais que aparecerão na fatura</small>
-          </div>
+            <div class="campo">
+              <label>Nova Data de Check-out *</label>
+              <input type="date" [(ngModel)]="novaDataCheckout" [min]="obterDataMinimaCheckout()">
+            </div>
 
-          <div class="campo">
-            <label>
-              <input type="checkbox" [(ngModel)]="mensagemAniversariante">
-              Incluir mensagem de aniversariante
-            </label>
-            <small>Mostrará "Feliz Aniversário" se o hóspede faz aniversário este mês</small>
-          </div>
+            <div class="campo">
+              <label>Motivo</label>
+              <textarea [(ngModel)]="motivoAlteracaoCheckout" rows="3"
+                        placeholder="Informe o motivo da alteração..."></textarea>
+            </div>
 
-          <div class="modal-footer">
-            <button class="btn-cancelar-modal" (click)="fecharModalCheckin()">
-              Cancelar
-            </button>
-            <button class="btn-confirmar" (click)="gerarDocumentoCheckin()">
-              📄 Gerar e Imprimir
-            </button>
+            <div class="modal-footer">
+              <button class="btn-cancelar-modal" (click)="fecharModalAlterarCheckout()">
+                Cancelar
+              </button>
+              <button class="btn-confirmar" (click)="confirmarAlteracaoCheckout()">
+                Confirmar Alteração
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- MODAL ALTERAR CHECKOUT -->
-      <div class="modal-overlay" *ngIf="modalAlterarCheckout" (click)="fecharModalAlterarCheckout()">
-        <div class="modal-content" (click)="$event.stopPropagation()">
-          <h2>📅 Alterar Data de Check-out</h2>
-          
-          <div class="info-box">
-            <p><strong>Check-in:</strong> {{ formatarData(reserva?.dataCheckin) }}</p>
-            <p><strong>Check-out atual:</strong> {{ formatarData(reserva?.dataCheckout) }}</p>
-          </div>
+        <!-- MODAL ALTERAR HÓSPEDES -->
+        <div class="modal-overlay" *ngIf="modalAlterarHospedes" (click)="fecharModalAlterarHospedes()">
+          <div class="modal-content" (click)="$event.stopPropagation()">
+            <h2>👥 Alterar Quantidade de Hóspedes</h2>
+            
+            <div class="info-box">
+              <p><strong>Quantidade atual:</strong> {{ reserva?.quantidadeHospede }} hóspede(s)</p>
+              <p><strong>Capacidade do apartamento:</strong> {{ reserva?.apartamento?.capacidade }} pessoa(s)</p>
+            </div>
 
-          <div class="campo">
-            <label>Nova Data de Check-out *</label>
-            <input type="date" [(ngModel)]="novaDataCheckout" [min]="obterDataMinimaCheckout()">
-          </div>
+            <div class="campo">
+              <label>Nova Quantidade *</label>
+              <input type="number" [(ngModel)]="novaQuantidadeHospedes" 
+                     min="1" [max]="reserva?.apartamento?.capacidade || 10">
+            </div>
 
-          <div class="campo">
-            <label>Motivo</label>
-            <textarea [(ngModel)]="motivoAlteracaoCheckout" rows="3"
-                      placeholder="Informe o motivo da alteração..."></textarea>
-          </div>
+            <div class="campo">
+              <label>Motivo</label>
+              <textarea [(ngModel)]="motivoAlteracaoHospedes" rows="3"
+                        placeholder="Informe o motivo da alteração..."></textarea>
+            </div>
 
-          <div class="modal-footer">
-            <button class="btn-cancelar-modal" (click)="fecharModalAlterarCheckout()">
-              Cancelar
-            </button>
-            <button class="btn-confirmar" (click)="confirmarAlteracaoCheckout()">
-              Confirmar Alteração
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- MODAL ALTERAR HÓSPEDES -->
-      <div class="modal-overlay" *ngIf="modalAlterarHospedes" (click)="fecharModalAlterarHospedes()">
-        <div class="modal-content" (click)="$event.stopPropagation()">
-          <h2>👥 Alterar Quantidade de Hóspedes</h2>
-          
-          <div class="info-box">
-            <p><strong>Quantidade atual:</strong> {{ reserva?.quantidadeHospede }} hóspede(s)</p>
-            <p><strong>Capacidade do apartamento:</strong> {{ reserva?.apartamento?.capacidade }} pessoa(s)</p>
-          </div>
-
-          <div class="campo">
-            <label>Nova Quantidade *</label>
-            <input type="number" [(ngModel)]="novaQuantidadeHospedes" 
-                   min="1" [max]="reserva?.apartamento?.capacidade || 10">
-          </div>
-
-          <div class="campo">
-            <label>Motivo</label>
-            <textarea [(ngModel)]="motivoAlteracaoHospedes" rows="3"
-                      placeholder="Informe o motivo da alteração..."></textarea>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn-cancelar-modal" (click)="fecharModalAlterarHospedes()">
-              Cancelar
-            </button>
-            <button class="btn-confirmar" (click)="confirmarAlteracaoHospedes()">
-              Confirmar Alteração
-            </button>
+            <div class="modal-footer">
+              <button class="btn-cancelar-modal" (click)="fecharModalAlterarHospedes()">
+                Cancelar
+              </button>
+              <button class="btn-confirmar" (click)="confirmarAlteracaoHospedes()">
+                Confirmar Alteração
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- MODAL PAGAMENTO -->
-      <div class="modal-overlay" *ngIf="modalPagamento" (click)="fecharModalPagamento()">
-        <div class="modal-content" (click)="$event.stopPropagation()">
-          <h2>💳 Registrar Pagamento</h2>
-          
-          <div class="campo">
-            <label>Valor a Pagar *</label>
-            <input type="number" [(ngModel)]="pagValor" step="0.01" min="0">
-            <small>Saldo devedor: R$ {{ formatarMoeda(reserva?.totalApagar) }}</small>
-          </div>
+        <!-- MODAL PAGAMENTO -->
+        <div class="modal-overlay" *ngIf="modalPagamento" (click)="fecharModalPagamento()">
+          <div class="modal-content" (click)="$event.stopPropagation()">
+            <h2>💳 Registrar Pagamento</h2>
+            
+            <div class="campo">
+              <label>Valor a Pagar *</label>
+              <input type="number" [(ngModel)]="pagValor" step="0.01" min="0">
+              <small>Saldo devedor: R$ {{ formatarMoeda(reserva?.totalApagar) }}</small>
+            </div>
 
-          <div class="campo">
-            <label>Forma de Pagamento *</label>
-            <select [(ngModel)]="pagFormaPagamento">
-              <option value="">Selecione...</option>
-              <option *ngFor="let forma of formasPagamento" [value]="forma.codigo">
-                {{ forma.nome }}
-              </option>
-            </select>
-          </div>
+            <div class="campo">
+              <label>Forma de Pagamento *</label>
+              <select [(ngModel)]="pagFormaPagamento">
+                <option value="">Selecione...</option>
+                <option *ngFor="let forma of formasPagamento" [value]="forma.codigo">
+                  {{ forma.nome }}
+                </option>
+              </select>
+            </div>
 
-          <div class="campo">
-            <label>Observação</label>
-            <textarea [(ngModel)]="pagObs" rows="3"></textarea>
-          </div>
+            <div class="campo">
+              <label>Observação</label>
+              <textarea [(ngModel)]="pagObs" rows="3"></textarea>
+            </div>
 
-          <div class="modal-footer">
-            <button class="btn-cancelar-modal" (click)="fecharModalPagamento()">
-              Cancelar
-            </button>
-            <button class="btn-confirmar" (click)="salvarPagamento()">
-              Confirmar Pagamento
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- MODAL CONSUMO -->
-      <div class="modal-overlay" *ngIf="modalConsumo" (click)="fecharModalConsumo()">
-        <div class="modal-content" (click)="$event.stopPropagation()">
-          <h2>🛒 Adicionar Consumo</h2>
-          
-          <div class="campo">
-            <label>Produto *</label>
-            <select [(ngModel)]="produtoSelecionadoId">
-              <option value="0">Selecione um produto...</option>
-              <option *ngFor="let produto of produtos" [value]="produto.id">
-                {{ produto.nomeProduto }} - R$ {{ formatarMoeda(produto.valorVenda) }} 
-                (Estoque: {{ produto.quantidade }})
-              </option>
-            </select>
-          </div>
-
-          <div class="campo">
-            <label>Quantidade *</label>
-            <input type="number" [(ngModel)]="quantidadeConsumo" min="1">
-          </div>
-
-          <div class="campo">
-            <label>Observação</label>
-            <textarea [(ngModel)]="observacaoConsumo" rows="3"></textarea>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn-cancelar-modal" (click)="fecharModalConsumo()">
-              Cancelar
-            </button>
-            <button class="btn-confirmar" (click)="salvarConsumo()">
-              Adicionar ao Consumo
-            </button>
+            <div class="modal-footer">
+              <button class="btn-cancelar-modal" (click)="fecharModalPagamento()">
+                Cancelar
+              </button>
+              <button class="btn-confirmar" (click)="salvarPagamento()">
+                Confirmar Pagamento
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- MODAL TRANSFERÊNCIA -->
-      <div class="modal-overlay" *ngIf="modalTransferencia" (click)="fecharModalTransferencia()">
-        <div class="modal-content modal-grande" (click)="$event.stopPropagation()">
-          <h2>🔄 Transferir Apartamento</h2>
-          
-          <div class="campo">
-            <label>Novo Apartamento *</label>
-            <select [(ngModel)]="novoApartamentoId">
-              <option value="0">Selecione um apartamento...</option>
-              <option *ngFor="let apt of apartamentosDisponiveis" [value]="apt.id">
-                {{ apt.numeroApartamento }} - 
-                {{ obterNomeTipoApartamento(apt) }} 
-                (Cap: {{ apt.capacidade }})
-              </option>
-            </select>
-          </div>
+        <!-- MODAL CONSUMO -->
+        <div class="modal-overlay" *ngIf="modalConsumo" (click)="fecharModalConsumo()">
+          <div class="modal-content" (click)="$event.stopPropagation()">
+            <h2>🛒 Adicionar Consumo</h2>
+            
+            <div class="campo">
+              <label>Produto *</label>
+              <select [(ngModel)]="produtoSelecionadoId">
+                <option value="0">Selecione um produto...</option>
+                <option *ngFor="let produto of produtos" [value]="produto.id">
+                  {{ produto.nomeProduto }} - R$ {{ formatarMoeda(produto.valorVenda) }} 
+                  (Estoque: {{ produto.quantidade }})
+                </option>
+              </select>
+            </div>
 
-          <div class="campo">
-            <label>
-              <input type="checkbox" [(ngModel)]="transferenciaImediata">
-              Transferência Imediata
-            </label>
-            <small>Se desmarcado, informe a data da transferência</small>
-          </div>
+            <div class="campo">
+              <label>Quantidade *</label>
+              <input type="number" [(ngModel)]="quantidadeConsumo" min="1">
+            </div>
 
-          <div class="campo" *ngIf="!transferenciaImediata">
-            <label>Data da Transferência *</label>
-            <input type="date" [(ngModel)]="dataTransferencia" [min]="obterDataMinima()">
-          </div>
+            <div class="campo">
+              <label>Observação</label>
+              <textarea [(ngModel)]="observacaoConsumo" rows="3"></textarea>
+            </div>
 
-          <div class="campo">
-            <label>Motivo *</label>
-            <textarea [(ngModel)]="motivoTransferencia" rows="3" 
-                      placeholder="Informe o motivo da transferência..."></textarea>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn-cancelar-modal" (click)="fecharModalTransferencia()">
-              Cancelar
-            </button>
-            <button class="btn-confirmar" (click)="confirmarTransferencia()">
-              Confirmar Transferência
-            </button>
+            <div class="modal-footer">
+              <button class="btn-cancelar-modal" (click)="fecharModalConsumo()">
+                Cancelar
+              </button>
+              <button class="btn-confirmar" (click)="salvarConsumo()">
+                Adicionar ao Consumo
+              </button>
+            </div>
           </div>
         </div>
+
+        <!-- MODAL TRANSFERÊNCIA -->
+        <div class="modal-overlay" *ngIf="modalTransferencia" (click)="fecharModalTransferencia()">
+          <div class="modal-content modal-grande" (click)="$event.stopPropagation()">
+            <h2>🔄 Transferir Apartamento</h2>
+            
+            <div class="campo">
+              <label>Novo Apartamento *</label>
+              <select [(ngModel)]="novoApartamentoId">
+                <option value="0">Selecione um apartamento...</option>
+                <option *ngFor="let apt of apartamentosDisponiveis" [value]="apt.id">
+                  {{ apt.numeroApartamento }} - 
+                  {{ obterNomeTipoApartamento(apt) }} 
+                  (Cap: {{ apt.capacidade }})
+                </option>
+              </select>
+            </div>
+
+            <div class="campo">
+              <label>
+                <input type="checkbox" [(ngModel)]="transferenciaImediata">
+                Transferência Imediata
+              </label>
+              <small>Se desmarcado, informe a data da transferência</small>
+            </div>
+
+            <div class="campo" *ngIf="!transferenciaImediata">
+              <label>Data da Transferência *</label>
+              <input type="date" [(ngModel)]="dataTransferencia" [min]="obterDataMinima()">
+            </div>
+
+            <div class="campo">
+              <label>Motivo *</label>
+              <textarea [(ngModel)]="motivoTransferencia" rows="3" 
+                        placeholder="Informe o motivo da transferência..."></textarea>
+            </div>
+
+            <div class="modal-footer">
+              <button class="btn-cancelar-modal" (click)="fecharModalTransferencia()">
+                Cancelar
+              </button>
+              <button class="btn-confirmar" (click)="confirmarTransferencia()">
+                Confirmar Transferência
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL ESTORNO -->
+        <div class="modal-overlay" *ngIf="modalEstorno" (click)="fecharModalEstorno()">
+          <div class="modal-content" (click)="$event.stopPropagation()">
+            <h2>❌ Estornar Lançamento</h2>
+            
+            <div class="info-box info-box-alerta">
+              <p><strong>⚠️ ATENÇÃO:</strong></p>
+              <p>Esta ação criará um lançamento de estorno negativo no extrato.</p>
+              <p>O produto será devolvido ao estoque.</p>
+            </div>
+
+            <div class="info-box" *ngIf="extratoParaEstornar">
+              <p><strong>Lançamento a estornar:</strong></p>
+              <p>{{ extratoParaEstornar.descricao }}</p>
+              <p><strong>Quantidade:</strong> {{ extratoParaEstornar.quantidade }}</p>
+              <p><strong>Valor:</strong> R$ {{ formatarMoeda(extratoParaEstornar.totalLancamento) }}</p>
+            </div>
+
+            <div class="campo">
+              <label>Motivo do Estorno *</label>
+              <textarea [(ngModel)]="motivoEstorno" rows="3"
+                        placeholder="Ex: Produto lançado errado, quantidade incorreta, etc."
+                        required></textarea>
+              <small>Obrigatório - Informe o motivo do estorno para auditoria</small>
+            </div>
+
+            <div class="campo">
+              <label>
+                <input type="checkbox" [(ngModel)]="criarLancamentoCorreto">
+                Criar lançamento correto automaticamente
+              </label>
+              <small>Marque se deseja já lançar o produto correto</small>
+            </div>
+
+            <div *ngIf="criarLancamentoCorreto" class="secao-correcao">
+              <h3>📝 Dados do Lançamento Correto</h3>
+              
+              <div class="campo">
+                <label>Produto Correto *</label>
+                <select [(ngModel)]="produtoCorretoId">
+                  <option value="0">Selecione um produto...</option>
+                  <option *ngFor="let produto of produtos" [value]="produto.id">
+                    {{ produto.nomeProduto }} - R$ {{ formatarMoeda(produto.valorVenda) }} 
+                    (Estoque: {{ produto.quantidade }})
+                  </option>
+                </select>
+              </div>
+
+              <div class="campo">
+                <label>Quantidade Correta *</label>
+                <input type="number" [(ngModel)]="quantidadeCorreta" min="1">
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button class="btn-cancelar-modal" (click)="fecharModalEstorno()">
+                Cancelar
+              </button>
+              <button class="btn-confirmar btn-estornar-confirmar" (click)="confirmarEstorno()">
+                ✅ Confirmar Estorno
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>    
+
+      <!-- MODAL DESCONTO -->
+       <div class="modal-overlay" *ngIf="modalDesconto" (click)="fecharModalDesconto()">
+       <div class="modal-content" (click)="$event.stopPropagation()">
+    <h2>💰 Aplicar Desconto</h2>
+    
+    <div class="info-box">
+      <p><strong>Total da Hospedagem:</strong> R$ {{ formatarMoeda(reserva?.totalHospedagem) }}</p>
+      <p><strong>Já Recebido:</strong> R$ {{ formatarMoeda(reserva?.totalRecebido) }}</p>
+      <p><strong>Saldo Atual:</strong> R$ {{ formatarMoeda(reserva?.totalApagar) }}</p>
+    </div>
+
+    <div class="campo">
+      <label>Valor do Desconto (R$) *</label>
+      <input type="number" [(ngModel)]="valorDesconto" step="0.01" min="0" 
+             [max]="reserva?.totalHospedagem || 0"
+             placeholder="0,00">
+      <small>Máximo: R$ {{ formatarMoeda(reserva?.totalHospedagem) }}</small>
+    </div>
+
+    <div class="campo" *ngIf="valorDesconto > 0">
+      <div class="info-box" style="background: #d4edda; border-color: #28a745;">
+        <p style="color: #155724;"><strong>Novo Total:</strong> R$ {{ formatarMoeda((reserva?.totalHospedagem || 0) - valorDesconto) }}</p>
+        <p style="color: #155724;"><strong>Novo Saldo:</strong> R$ {{ formatarMoeda((reserva?.totalHospedagem || 0) - valorDesconto - (reserva?.totalRecebido || 0)) }}</p>
       </div>
+    </div>
+
+    <div class="campo">
+      <label>Motivo do Desconto</label>
+      <textarea [(ngModel)]="motivoDesconto" rows="3"
+                placeholder="Ex: Desconto promocional, cortesia, problema na hospedagem, etc."></textarea>
+      <small>Opcional - Informe o motivo do desconto para controle</small>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancelar-modal" (click)="fecharModalDesconto()">
+        Cancelar
+      </button>
+      <button class="btn-confirmar" (click)="confirmarDesconto()">
+        💰 Aplicar Desconto
+      </button>
+    </div>
+  </div>
+</div>
+
     </div>
   `,
   styles: [`
@@ -615,6 +758,11 @@ interface Apartamento {
     .status-ativa {
       background: #d4edda;
       color: #155724;
+    }
+
+    .status-pre_reserva {
+      background: #d1ecf1;
+      color: #0c5460;
     }
 
     .status-finalizada {
@@ -789,19 +937,39 @@ interface Apartamento {
       color: #155724;
     }
 
-    .badge-consumo {
+    .badge-produto {
       background: #fff3cd;
       color: #856404;
     }
 
-    .badge-pagamento {
-      background: #cce5ff;
-      color: #004085;
-    }
-
-    .badge-desconto {
+    .badge-estorno {
       background: #f8d7da;
       color: #721c24;
+    }
+
+    /* BOTÃO ESTORNAR NA TABELA */
+    .btn-estornar {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85em;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .btn-estornar:hover {
+      background: #c0392b;
+      transform: scale(1.05);
+    }
+
+    /* COLUNA DE AÇÕES NA TABELA */
+    .tabela-extrato th:last-child,
+    .tabela-extrato td:last-child {
+      text-align: center;
+      width: 120px;
     }
 
     /* HISTÓRICO */
@@ -899,6 +1067,11 @@ interface Apartamento {
       color: white;
     }
 
+    .btn-comanda {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+    }
+
     .btn-pagamento {
       background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
       color: white;
@@ -919,8 +1092,13 @@ interface Apartamento {
       color: white;
     }
 
+    .btn-finalizar-paga {
+      background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+      color: white;
+    }
+
     .btn-recibo {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
       color: white;
     }
 
@@ -928,6 +1106,23 @@ interface Apartamento {
       background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
       color: white;
     }
+
+    /* BOTÕES DE DESCONTO */
+.btn-desconto {
+  background: #28a745 !important;
+}
+
+.btn-desconto:hover {
+  background: #218838 !important;
+}
+
+.btn-remover-desconto {
+  background: #dc3545 !important;
+}
+
+.btn-remover-desconto:hover {
+  background: #c82333 !important;
+}
 
     /* MODAIS */
     .modal-overlay {
@@ -975,6 +1170,36 @@ interface Apartamento {
     .info-box p {
       margin: 5px 0;
       color: #1976d2;
+    }
+
+    /* INFO BOX ALERTA */
+    .info-box-alerta {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+    }
+
+    .info-box-alerta p {
+      color: #856404;
+    }
+
+    .info-box-alerta p:first-child {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    /* SEÇÃO DE CORREÇÃO */
+    .secao-correcao {
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+      border-left: 4px solid #2196f3;
+    }
+
+    .secao-correcao h3 {
+      margin: 0 0 15px 0;
+      color: #1976d2;
+      font-size: 1.1em;
     }
 
     .campo {
@@ -1058,6 +1283,15 @@ interface Apartamento {
       transform: translateY(-2px);
     }
 
+    /* BOTÃO CONFIRMAR ESTORNO */
+    .btn-estornar-confirmar {
+      background: #e74c3c !important;
+    }
+
+    .btn-estornar-confirmar:hover {
+      background: #c0392b !important;
+    }
+
     /* RESPONSIVO */
     @media (max-width: 768px) {
       .grid {
@@ -1087,15 +1321,71 @@ interface Apartamento {
         width: 100%;
         margin-top: 10px;
       }
+
+      /* LISTA DE DESCONTOS */
+.lista-descontos {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 3px solid #28a745;
+}
+
+.desconto-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  background: white;
+  border-radius: 4px;
+  border-left: 2px solid #28a745;
+}
+
+.desconto-item:last-child {
+  margin-bottom: 0;
+}
+
+.desconto-valor {
+  font-weight: bold;
+  color: #28a745;
+  min-width: 80px;
+}
+
+.desconto-motivo {
+  flex: 1;
+  margin: 0 10px;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.btn-remover-desc {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s;
+}
+
+.btn-remover-desc:hover {
+  background: #c82333;
+  transform: scale(1.1);
+}
     }
   `]
 })
+
 export class ReservaDetalhesApp implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private http = inject(HttpClient);
+  private authService = inject(AuthService); 
 
   reserva: ReservaDetalhes | null = null;
+  reservaId: number = 0;
   loading = false;
   erro = '';
 
@@ -1119,7 +1409,7 @@ export class ReservaDetalhesApp implements OnInit {
     { codigo: 'PIX', nome: 'PIX' },
     { codigo: 'CARTAO_DEBITO', nome: 'Cartão Débito' },
     { codigo: 'CARTAO_CREDITO', nome: 'Cartão Crédito' },
-    { codigo: 'TRANSFERENCIA_BANCARIA', nome: 'Transferência' }   
+    { codigo: 'TRANSFERENCIA_BANCARIA', nome: 'Transferência' }
   ];
 
   // CONSUMO
@@ -1137,18 +1427,24 @@ export class ReservaDetalhesApp implements OnInit {
   transferenciaImediata = true;
   motivoTransferencia = '';
 
-  // CHECK-IN
-  modalCheckin = false;
-  observacoesCheckin = '';
-  mensagemAniversariante = false;
-  isAniversariante = false;
-  tipoDocumentoFinalizado: 'recibo' | 'fatura' | null = null;
-  valorAPagarFinalizado = 0;
+  // ESTORNO
+  modalEstorno = false;
+  extratoParaEstornar: any = null;
+  motivoEstorno = '';
+  criarLancamentoCorreto = false;
+  produtoCorretoId = 0;
+  quantidadeCorreta = 1;
+
+  // DESCONTO
+modalDesconto = false;
+valorDesconto = 0;
+motivoDesconto = '';
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      this.carregarReserva(Number(id));
+      this.reservaId = Number(id);
+      this.carregarReserva(this.reservaId);
     } else {
       this.erro = 'ID da reserva não fornecido';
     }
@@ -1163,7 +1459,6 @@ export class ReservaDetalhesApp implements OnInit {
         this.reserva = data;
         this.loading = false;
         console.log('✅ Reserva carregada:', data);
-        this.verificarAniversariante();
       },
       error: (err: any) => {
         console.error('❌ Erro:', err);
@@ -1173,20 +1468,16 @@ export class ReservaDetalhesApp implements OnInit {
     });
   }
 
-  verificarAniversariante(): void {
-    if (!this.reserva?.cliente?.dataNascimento) {
-      this.isAniversariante = false;
-      return;
-    }
-
-    const hoje = new Date();
-    const dataNasc = new Date(this.reserva.cliente.dataNascimento);
-    
-    this.isAniversariante = hoje.getMonth() === dataNasc.getMonth();
-  }
-
   voltar(): void {
     this.router.navigate(['/reservas']);
+  }
+
+  abrirComanda(): void {
+    if (this.reservaId) {
+      this.router.navigate(['/comanda-consumo', this.reservaId]);
+    } else {
+      alert('⚠️ Erro: ID da reserva não encontrado');
+    }
   }
 
   formatarData(data: any): string {
@@ -1237,61 +1528,55 @@ export class ReservaDetalhesApp implements OnInit {
     return apenasNumeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
   }
 
-  // ============= CHECK-IN =============
-  abrirModalCheckin(): void {
-    this.observacoesCheckin = this.reserva?.observacoes || '';
-    this.mensagemAniversariante = this.isAniversariante;
-    this.modalCheckin = true;
-  }
-
-  fecharModalCheckin(): void {
-    this.modalCheckin = false;
-  }
-
-  gerarDocumentoCheckin(): void {
+  // ============= IMPRIMIR CHECK-IN =============
+  imprimirCheckin(): void {
     if (!this.reserva) return;
-    
-    this.fecharModalCheckin();
     
     const htmlImpressao = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
-        <title>Fatura Check-in - Reserva #${this.reserva.id}</title>
+        <title>Ficha de Check-in - Reserva #${this.reserva.id}</title>
         <style>
           @page { size: 80mm auto; margin: 0; }
           body { 
             font-family: 'Courier New', monospace; 
-            font-size: 12px; 
+            font-size: 9px; 
             width: 80mm; 
             margin: 0; 
             padding: 5mm;
+            line-height: 1.3;
           }
-          .cabecalho { text-align: center; margin-bottom: 10px; }
-          .cabecalho h1 { font-size: 18px; margin: 0; letter-spacing: 2px; }
-          .cnpj, .endereco { font-size: 11px; margin: 2px 0; }
-          .separador { text-align: center; margin: 8px 0; font-size: 10px; }
-          .titulo-documento { text-align: center; margin: 10px 0; }
-          .titulo-documento h2 { font-size: 14px; margin: 0; }
-          .numero-reserva { font-size: 13px; font-weight: bold; margin: 5px 0; }
-          .data-emissao { font-size: 10px; margin: 2px 0; }
-          .secao { margin: 10px 0; }
-          .secao h3 { font-size: 12px; margin: 0 0 8px 0; text-decoration: underline; }
-          .secao p { margin: 4px 0; font-size: 11px; line-height: 1.4; }
-          .valores { text-align: center; }
-          .valor-destaque { font-size: 14px; font-weight: bold; margin: 5px 0 10px 0; }
-          .valor-total { font-size: 16px; font-weight: bold; margin: 5px 0; }
-          .aniversariante { text-align: center; background: black; color: white; padding: 8px; margin: 10px 0; font-weight: bold; }
-          .observacoes { margin: 10px 0; padding: 8px; border: 1px solid #000; }
-          .observacoes h3 { font-size: 11px; margin: 0 0 5px 0; }
-          .observacoes p { font-size: 10px; margin: 0; white-space: pre-wrap; }
-          .assinatura { margin-top: 20px; text-align: center; }
-          .texto-assinatura { font-size: 10px; margin: 2px 0; }
-          .linha-assinatura { border-top: 1px solid #000; margin: 15px 10px 5px 10px; }
-          .label-assinatura { font-size: 10px; margin: 2px 0; }
-          .rodape { text-align: center; margin-top: 15px; font-size: 11px; }
-          .rodape p { margin: 3px 0; }
+          .cabecalho { text-align: left; margin-bottom: 8px; }
+          .cabecalho h1 { font-size: 13px; margin: 0 0 2px 0; letter-spacing: 1px; }
+          .cnpj, .endereco { font-size: 8px; margin: 1px 0; }
+          .separador { text-align: center; margin: 6px 0; font-size: 8px; }
+          .titulo-documento { text-align: left; margin: 8px 0; }
+          .titulo-documento h2 { font-size: 10px; margin: 0; }
+          .numero-reserva { font-size: 9px; font-weight: bold; margin: 3px 0; }
+          .data-emissao { font-size: 8px; margin: 2px 0; }
+          .secao { margin: 8px 0; }
+          .secao h3 { font-size: 9px; margin: 0 0 5px 0; text-decoration: underline; }
+          .secao p { margin: 3px 0; font-size: 8px; line-height: 1.3; }
+          .linha-valor { 
+            display: flex; 
+            justify-content: space-between;
+            margin: 3px 0; 
+            font-size: 8px; 
+            padding-right: 20mm;
+          }
+          .linha-valor.destaque { font-size: 9px; font-weight: bold; margin: 5px 0; }
+          .assinatura { margin-top: 15px; text-align: center; }
+          .texto-assinatura { font-size: 8px; margin: 2px 0; }
+          .linha-assinatura { 
+            border-top: 1px solid #000; 
+            margin: 12px 20mm 4px 20mm;
+            width: auto;
+          }
+          .label-assinatura { font-size: 7px; margin: 2px 0; }
+          .rodape { text-align: left; margin-top: 12px; font-size: 8px; }
+          .rodape p { margin: 2px 0; }
         </style>
       </head>
       <body>
@@ -1299,71 +1584,61 @@ export class ReservaDetalhesApp implements OnInit {
           <h1>HOTEL DI VAN</h1>
           <p class="cnpj">CNPJ: 07.757.726/0001-12</p>
           <p class="endereco">Arapiraca - AL</p>
-          <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+          <div class="separador">================================</div>
         </div>
 
         <div class="titulo-documento">
-          <h2>FATURA DE CHECK-IN</h2>
+          <h2>FICHA DE CHECK-IN</h2>
           <p class="numero-reserva">Reserva Nº ${this.reserva.id}</p>
           <p class="data-emissao">${this.dataAtualCompleta()}</p>
         </div>
 
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+        <div class="separador">================================</div>
 
         <div class="secao">
-          <h3>DADOS DO HÓSPEDE</h3>
+          <h3>DADOS DO HOSPEDE</h3>
           <p><strong>Nome:</strong> ${this.reserva.cliente?.nome}</p>
-          <p><strong>Telefone:</strong> ${this.reserva.cliente?.celular || this.reserva.cliente?.telefone || 'Não informado'}</p>
+          <p><strong>Telefone:</strong> ${this.reserva.cliente?.celular || this.reserva.cliente?.telefone || 'Nao informado'}</p>
         </div>
 
-        <div class="separador">- - - - - - - - - - - - - - -</div>
+        <div class="separador">- - - - - - - - - - - - - - - -</div>
 
         <div class="secao">
-          <h3>INFORMAÇÕES DA RESERVA</h3>
+          <h3>INFORMACOES DA RESERVA</h3>
           <p><strong>Apartamento:</strong> ${this.reserva.apartamento?.numeroApartamento}</p>
           <p><strong>Check-in:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckin)}</p>
           <p><strong>Check-out:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckout)}</p>
-          <p><strong>Diárias:</strong> ${this.reserva.quantidadeDiaria} dia(s)</p>
-          <p><strong>Hóspedes:</strong> ${this.reserva.quantidadeHospede} pessoa(s)</p>
+          <p><strong>Diarias:</strong> ${this.reserva.quantidadeDiaria} dia(s)</p>
+          <p><strong>Hospedes:</strong> ${this.reserva.quantidadeHospede} pessoa(s)</p>
         </div>
 
-        <div class="separador">- - - - - - - - - - - - - - -</div>
+        <div class="separador">- - - - - - - - - - - - - - - -</div>
 
-        <div class="secao valores">
-          <p><strong>Valor da Diária:</strong></p>
-          <p class="valor-destaque">R$ ${this.formatarMoeda(this.reserva.valorDiaria)}</p>
-          <p><strong>Total Estimado:</strong></p>
-          <p class="valor-total">R$ ${this.formatarMoeda(this.reserva.totalDiaria)}</p>
+        <div class="secao">
+          <h3>VALORES</h3>
+          <div class="linha-valor">
+            <span>Valor da Diaria:</span>
+            <span>R$ ${this.formatarMoeda(this.reserva.valorDiaria)}</span>
+          </div>
+          <div class="linha-valor destaque">
+            <span>Total Estimado:</span>
+            <span>R$ ${this.formatarMoeda(this.reserva.totalDiaria)}</span>
+          </div>
         </div>
 
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-
-        ${this.isAniversariante && this.mensagemAniversariante ? `
-          <div class="aniversariante">
-            <p>🎉 FELIZ ANIVERSÁRIO! 🎉</p>
-            <p>Desejamos um mês especial!</p>
-          </div>
-        ` : ''}
-
-        ${this.observacoesCheckin ? `
-          <div class="observacoes">
-            <h3>OBSERVAÇÕES:</h3>
-            <p>${this.observacoesCheckin}</p>
-          </div>
-          <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-        ` : ''}
+        <div class="separador">================================</div>
 
         <div class="assinatura">
-          <p class="texto-assinatura">Declaro estar ciente das condições</p>
+          <p class="texto-assinatura">Declaro estar ciente das condicoes</p>
           <p class="texto-assinatura">da reserva e dos valores cobrados.</p>
           <div class="linha-assinatura"></div>
-          <p class="label-assinatura">Assinatura do Hóspede</p>
+          <p class="label-assinatura">Assinatura do Hospede</p>
           <div class="linha-assinatura"></div>
           <p class="label-assinatura">Data: ____/____/________</p>
         </div>
 
         <div class="rodape">
-          <p>Obrigado pela preferência!</p>
+          <p>Obrigado pela preferencia!</p>
           <p>Tenha uma excelente estadia!</p>
         </div>
 
@@ -1386,30 +1661,26 @@ export class ReservaDetalhesApp implements OnInit {
     }
   }
 
-  // ============= RECIBO =============
-
+  // ============= RECIBO/FATURA =============
   imprimirRecibo(): void {
-  if (!this.reserva) return;
+    if (!this.reserva) return;
 
-  console.log('📄 Total a pagar:', this.reserva.totalApagar);
-  console.log('📄 Total recebido:', this.reserva.totalRecebido);
-  console.log('📄 Total hospedagem:', this.reserva.totalHospedagem);
-
-  // ✅ DECISÃO: Se tem saldo > 0, é FATURA. Se não, é RECIBO.
-  const temSaldo = (this.reserva.totalApagar || 0) > 0;
-  
-  if (temSaldo) {
-    console.log('🔸 Gerando FATURA (há saldo a pagar)');
-    this.gerarFatura();
-  } else {
-    console.log('🔸 Gerando RECIBO (tudo pago)');
-    this.gerarRecibo();
+    const temSaldo = (this.reserva.totalApagar || 0) > 0;
+    
+    if (temSaldo) {
+      console.log('🔸 Gerando FATURA');
+      this.gerarFatura();
+    } else {
+      console.log('🔸 Gerando RECIBO');
+      this.gerarRecibo();
+    }
   }
-}
 
-// ============= GERAR RECIBO (PAGO) =============
-gerarRecibo(): void {
+ gerarRecibo(): void {
   if (!this.reserva) return;
+
+  // ✅ CALCULAR TOTAL COM DESCONTO
+  const totalComDesconto = (this.reserva.totalHospedagem || 0) - (this.reserva.desconto || 0);
 
   const htmlImpressao = `
     <!DOCTYPE html>
@@ -1421,32 +1692,31 @@ gerarRecibo(): void {
         @page { size: 80mm auto; margin: 0; }
         body { 
           font-family: 'Courier New', monospace; 
-          font-size: 12px; 
+          font-size: 10px; 
           width: 80mm; 
           margin: 0; 
           padding: 5mm;
         }
-        .cabecalho { text-align: center; margin-bottom: 10px; }
-        .cabecalho h1 { font-size: 18px; margin: 0; letter-spacing: 2px; }
-        .cnpj, .endereco { font-size: 11px; margin: 2px 0; }
-        .separador { text-align: center; margin: 8px 0; font-size: 10px; }
-        .titulo-documento { text-align: center; margin: 10px 0; }
-        .titulo-documento h2 { font-size: 14px; margin: 0; }
-        .numero-reserva { font-size: 13px; font-weight: bold; margin: 5px 0; }
-        .data-emissao { font-size: 10px; margin: 2px 0; }
-        .secao { margin: 10px 0; }
-        .secao h3 { font-size: 12px; margin: 0 0 8px 0; text-decoration: underline; }
-        .secao p { margin: 4px 0; font-size: 11px; line-height: 1.4; }
-        .linha-valor { display: flex; justify-content: space-between; margin: 5px 0; font-size: 11px; }
-        .linha-valor.subtotal { font-weight: bold; margin-top: 8px; }
-        .linha-valor.total { font-size: 14px; font-weight: bold; margin: 8px 0; }
-        .declaracao { text-align: center; margin: 15px 0; font-size: 11px; }
-        .declaracao p { margin: 3px 0; }
-        .assinatura { margin-top: 20px; text-align: center; }
-        .linha-assinatura { border-top: 1px solid #000; margin: 15px 20px 5px 20px; }
-        .label-assinatura { font-size: 10px; margin: 2px 0; }
-        .rodape { text-align: center; margin-top: 15px; font-size: 11px; }
-        .rodape p { margin: 3px 0; }
+        .cabecalho { text-align: left; margin-bottom: 8px; }
+        .cabecalho h1 { font-size: 14px; margin: 0; letter-spacing: 2px; }
+        .cnpj, .endereco { font-size: 9px; margin: 2px 0; }
+        .separador { text-align: center; margin: 6px 0; font-size: 10px; }
+        .titulo-documento { text-align: left; margin: 8px 0; }
+        .titulo-documento h2 { font-size: 11px; margin: 0; }
+        .numero-reserva { font-size: 10px; font-weight: bold; margin: 4px 0; }
+        .data-emissao { font-size: 8px; margin: 2px 0; }
+        .secao { margin: 8px 0; }
+        .secao h3 { font-size: 10px; margin: 0 0 6px 0; text-decoration: underline; }
+        .secao p { margin: 3px 0; font-size: 9px; line-height: 1.3; }
+        .linha-valor { display: flex; justify-content: space-between; margin: 4px 0; font-size: 9px; }
+        .linha-valor.total { font-size: 11px; font-weight: bold; margin: 6px 0; }
+        .declaracao { text-align: left; margin: 12px 0; font-size: 9px; }
+        .declaracao p { margin: 2px 0; }
+        .assinatura { margin-top: 15px; text-align: center; }
+        .linha-assinatura { border-top: 1px solid #000; margin: 12px 15px 4px 15px; }
+        .label-assinatura { font-size: 8px; margin: 2px 0; }
+        .rodape { text-align: left; margin-top: 12px; font-size: 9px; }
+        .rodape p { margin: 2px 0; }
       </style>
     </head>
     <body>
@@ -1454,7 +1724,7 @@ gerarRecibo(): void {
         <h1>HOTEL DI VAN</h1>
         <p class="cnpj">CNPJ: 07.757.726/0001-12</p>
         <p class="endereco">Arapiraca - AL</p>
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+        <div class="separador">================================</div>
       </div>
 
       <div class="titulo-documento">
@@ -1463,32 +1733,32 @@ gerarRecibo(): void {
         <p class="data-emissao">${this.dataAtualCompleta()}</p>
       </div>
 
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="separador">================================</div>
 
       <div class="secao">
-        <h3>DADOS DO HÓSPEDE</h3>
+        <h3>DADOS DO HOSPEDE</h3>
         <p><strong>Nome:</strong> ${this.reserva.cliente?.nome}</p>
         <p><strong>CPF:</strong> ${this.formatarCPF(this.reserva.cliente?.cpf)}</p>
-        <p><strong>Telefone:</strong> ${this.reserva.cliente?.celular || this.reserva.cliente?.telefone || 'Não informado'}</p>
+        <p><strong>Telefone:</strong> ${this.reserva.cliente?.celular || this.reserva.cliente?.telefone || 'Nao informado'}</p>
       </div>
 
-      <div class="separador">- - - - - - - - - - - - - - -</div>
+      <div class="separador">- - - - - - - - - - - - - - - -</div>
 
       <div class="secao">
-        <h3>PERÍODO DA HOSPEDAGEM</h3>
+        <h3>PERIODO DA HOSPEDAGEM</h3>
         <p><strong>Apartamento:</strong> ${this.reserva.apartamento?.numeroApartamento}</p>
         <p><strong>Check-in:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckin)}</p>
         <p><strong>Check-out:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckout)}</p>
-        <p><strong>Total de Diárias:</strong> ${this.reserva.quantidadeDiaria} dia(s)</p>
-        <p><strong>Hóspedes:</strong> ${this.reserva.quantidadeHospede} pessoa(s)</p>
+        <p><strong>Total de Diarias:</strong> ${this.reserva.quantidadeDiaria} dia(s)</p>
+        <p><strong>Hospedes:</strong> ${this.reserva.quantidadeHospede} pessoa(s)</p>
       </div>
 
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="separador">================================</div>
 
       <div class="secao">
-        <h3>DISCRIMINAÇÃO DE VALORES</h3>
+        <h3>DISCRIMINACAO DE VALORES</h3>
         <div class="linha-valor">
-          <span>Diárias (${this.reserva.quantidadeDiaria}x):</span>
+          <span>Diarias (${this.reserva.quantidadeDiaria}x):</span>
           <span>R$ ${this.formatarMoeda(this.reserva.totalDiaria)}</span>
         </div>
         <div class="linha-valor">
@@ -1501,19 +1771,19 @@ gerarRecibo(): void {
             <span>- R$ ${this.formatarMoeda(this.reserva.desconto)}</span>
           </div>
         ` : ''}
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+        <div class="separador">================================</div>
         <div class="linha-valor total">
           <span>TOTAL PAGO:</span>
-          <span>R$ ${this.formatarMoeda(this.reserva.totalHospedagem)}</span>
+          <span>R$ ${this.formatarMoeda(totalComDesconto)}</span>
         </div>
       </div>
 
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="separador">================================</div>
 
       <div class="declaracao">
         <p>Recebi(emos) de ${this.reserva.cliente?.nome}</p>
-        <p>a importância de <strong>R$ ${this.formatarMoeda(this.reserva.totalHospedagem)}</strong></p>
-        <p>referente à hospedagem no período citado.</p>
+        <p>a importancia de <strong>R$ ${this.formatarMoeda(totalComDesconto)}</strong></p>
+        <p>referente a hospedagem no periodo citado.</p>
       </div>
 
       <div class="assinatura">
@@ -1523,13 +1793,12 @@ gerarRecibo(): void {
       </div>
 
       <div class="rodape">
-        <p>Obrigado pela preferência!</p>
+        <p>Obrigado pela preferencia!</p>
         <p>Volte sempre!</p>
       </div>
 
       <script>
         window.onload = function() {
-          console.log('Imprimindo RECIBO');
           window.print();
           window.onafterprint = function() {
             window.close();
@@ -1547,8 +1816,7 @@ gerarRecibo(): void {
   }
 }
 
-// ============= GERAR FATURA (A PAGAR) =============
-gerarFatura(): void {
+  gerarFatura(): void {
   if (!this.reserva) return;
 
   const htmlImpressao = `
@@ -1561,33 +1829,33 @@ gerarFatura(): void {
         @page { size: 80mm auto; margin: 0; }
         body { 
           font-family: 'Courier New', monospace; 
-          font-size: 12px; 
+          font-size: 10px; 
           width: 80mm; 
           margin: 0; 
           padding: 5mm;
         }
-        .cabecalho { text-align: center; margin-bottom: 10px; }
-        .cabecalho h1 { font-size: 18px; margin: 0; letter-spacing: 2px; }
-        .cnpj, .endereco { font-size: 11px; margin: 2px 0; }
-        .separador { text-align: center; margin: 8px 0; font-size: 10px; }
-        .titulo-documento { text-align: center; margin: 10px 0; }
-        .titulo-documento h2 { font-size: 14px; margin: 0; }
-        .numero-reserva { font-size: 13px; font-weight: bold; margin: 5px 0; }
-        .data-emissao { font-size: 10px; margin: 2px 0; }
-        .secao { margin: 10px 0; }
-        .secao h3 { font-size: 12px; margin: 0 0 8px 0; text-decoration: underline; }
-        .secao p { margin: 4px 0; font-size: 11px; line-height: 1.4; }
-        .linha-valor { display: flex; justify-content: space-between; margin: 5px 0; font-size: 11px; }
-        .linha-valor.subtotal { font-weight: bold; margin-top: 8px; }
-        .linha-valor.total { font-size: 14px; font-weight: bold; margin: 8px 0; }
-        .declaracao { text-align: center; margin: 15px 0; font-size: 11px; }
-        .declaracao p { margin: 3px 0; }
-        .assinatura { margin-top: 20px; text-align: center; }
-        .linha-assinatura { border-top: 1px solid #000; margin: 15px 20px 5px 20px; }
-        .label-assinatura { font-size: 10px; margin: 2px 0; }
-        .rodape { text-align: center; margin-top: 15px; font-size: 11px; }
-        .rodape p { margin: 3px 0; }
-        .destaque-apagar { background: #000; color: #fff; padding: 8px; text-align: center; margin: 10px 0; }
+        .cabecalho { text-align: left; margin-bottom: 8px; }
+        .cabecalho h1 { font-size: 14px; margin: 0; letter-spacing: 2px; }
+        .cnpj, .endereco { font-size: 9px; margin: 2px 0; }
+        .separador { text-align: center; margin: 6px 0; font-size: 10px; }
+        .titulo-documento { text-align: left; margin: 8px 0; }
+        .titulo-documento h2 { font-size: 11px; margin: 0; }
+        .numero-reserva { font-size: 10px; font-weight: bold; margin: 4px 0; }
+        .data-emissao { font-size: 8px; margin: 2px 0; }
+        .secao { margin: 8px 0; }
+        .secao h3 { font-size: 10px; margin: 0 0 6px 0; text-decoration: underline; }
+        .secao p { margin: 3px 0; font-size: 9px; line-height: 1.3; }
+        .linha-valor { display: flex; justify-content: space-between; margin: 4px 0; font-size: 9px; }
+        .linha-valor.subtotal { font-weight: bold; margin-top: 6px; }
+        .linha-valor.total { font-size: 11px; font-weight: bold; margin: 6px 0; }
+        .declaracao { text-align: left; margin: 12px 0; font-size: 9px; }
+        .declaracao p { margin: 2px 0; }
+        .assinatura { margin-top: 15px; text-align: center; }
+        .linha-assinatura { border-top: 1px solid #000; margin: 12px 15px 4px 15px; }
+        .label-assinatura { font-size: 8px; margin: 2px 0; }
+        .rodape { text-align: left; margin-top: 12px; font-size: 9px; }
+        .rodape p { margin: 2px 0; }
+        .destaque-apagar { background: #000; color: #fff; padding: 6px; text-align: center; margin: 8px 0; }
       </style>
     </head>
     <body>
@@ -1595,7 +1863,7 @@ gerarFatura(): void {
         <h1>HOTEL DI VAN</h1>
         <p class="cnpj">CNPJ: 07.757.726/0001-12</p>
         <p class="endereco">Arapiraca - AL</p>
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+        <div class="separador">================================</div>
       </div>
 
       <div class="titulo-documento">
@@ -1604,32 +1872,32 @@ gerarFatura(): void {
         <p class="data-emissao">${this.dataAtualCompleta()}</p>
       </div>
 
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="separador">================================</div>
 
       <div class="secao">
-        <h3>DADOS DO HÓSPEDE</h3>
+        <h3>DADOS DO HOSPEDE</h3>
         <p><strong>Nome:</strong> ${this.reserva.cliente?.nome}</p>
         <p><strong>CPF:</strong> ${this.formatarCPF(this.reserva.cliente?.cpf)}</p>
-        <p><strong>Telefone:</strong> ${this.reserva.cliente?.celular || this.reserva.cliente?.telefone || 'Não informado'}</p>
+        <p><strong>Telefone:</strong> ${this.reserva.cliente?.celular || this.reserva.cliente?.telefone || 'Nao informado'}</p>
       </div>
 
-      <div class="separador">- - - - - - - - - - - - - - -</div>
+      <div class="separador">- - - - - - - - - - - - - - - -</div>
 
       <div class="secao">
-        <h3>PERÍODO DA HOSPEDAGEM</h3>
+        <h3>PERIODO DA HOSPEDAGEM</h3>
         <p><strong>Apartamento:</strong> ${this.reserva.apartamento?.numeroApartamento}</p>
         <p><strong>Check-in:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckin)}</p>
         <p><strong>Check-out:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckout)}</p>
-        <p><strong>Total de Diárias:</strong> ${this.reserva.quantidadeDiaria} dia(s)</p>
-        <p><strong>Hóspedes:</strong> ${this.reserva.quantidadeHospede} pessoa(s)</p>
+        <p><strong>Total de Diarias:</strong> ${this.reserva.quantidadeDiaria} dia(s)</p>
+        <p><strong>Hospedes:</strong> ${this.reserva.quantidadeHospede} pessoa(s)</p>
       </div>
 
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="separador">================================</div>
 
       <div class="secao">
-        <h3>DISCRIMINAÇÃO DE VALORES</h3>
+        <h3>DISCRIMINACAO DE VALORES</h3>
         <div class="linha-valor">
-          <span>Diárias (${this.reserva.quantidadeDiaria}x):</span>
+          <span>Diarias (${this.reserva.quantidadeDiaria}x):</span>
           <span>R$ ${this.formatarMoeda(this.reserva.totalDiaria)}</span>
         </div>
         <div class="linha-valor">
@@ -1642,18 +1910,18 @@ gerarFatura(): void {
             <span>- R$ ${this.formatarMoeda(this.reserva.desconto)}</span>
           </div>
         ` : ''}
-        <div class="separador">- - - - - - - - - - - - - - -</div>
+        <div class="separador">- - - - - - - - - - - - - - - -</div>
         <div class="linha-valor subtotal">
           <span>Subtotal:</span>
           <span>R$ ${this.formatarMoeda(this.reserva.totalHospedagem)}</span>
         </div>
         ${(this.reserva.totalRecebido || 0) > 0 ? `
           <div class="linha-valor">
-            <span>Já Recebido:</span>
+            <span>Ja Recebido:</span>
             <span>- R$ ${this.formatarMoeda(this.reserva.totalRecebido)}</span>
           </div>
         ` : ''}
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+        <div class="separador">================================</div>
         <div class="linha-valor total">
           <span>VALOR A PAGAR:</span>
           <span>R$ ${this.formatarMoeda(this.reserva.totalApagar)}</span>
@@ -1661,36 +1929,35 @@ gerarFatura(): void {
       </div>
 
       <div class="destaque-apagar">
-        <p style="margin: 0; font-size: 13px; font-weight: bold;">
+        <p style="margin: 0; font-size: 10px; font-weight: bold;">
           VALOR A PAGAR: R$ ${this.formatarMoeda(this.reserva.totalApagar)}
         </p>
       </div>
 
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <div class="separador">================================</div>
 
       <div class="declaracao">
         <p>O Sr(a). ${this.reserva.cliente?.nome}</p>
-        <p>deverá pagar a importância de</p>
+        <p>devera pagar a importancia de</p>
         <p><strong>R$ ${this.formatarMoeda(this.reserva.totalApagar)}</strong></p>
-        <p>referente à hospedagem no período citado.</p>
+        <p>referente a hospedagem no periodo citado.</p>
       </div>
 
       <div class="assinatura">
         <div class="linha-assinatura"></div>
-        <p class="label-assinatura">Assinatura do Hóspede</p>
+        <p class="label-assinatura">Assinatura do Hospede</p>
         <div class="linha-assinatura"></div>
         <p class="label-assinatura">Hotel Di Van</p>
         <p class="label-assinatura">Data: ${this.dataAtualSimples()}</p>
       </div>
 
       <div class="rodape">
-        <p>Esta fatura deverá ser paga</p>
+        <p>Esta fatura devera ser paga</p>
         <p>conforme acordado.</p>
       </div>
 
       <script>
         window.onload = function() {
-          console.log('Imprimindo FATURA - Valor a pagar: R$ ${this.formatarMoeda(this.reserva!.totalApagar)}');
           window.print();
           window.onafterprint = function() {
             window.close();
@@ -1820,26 +2087,38 @@ gerarFatura(): void {
     this.modalPagamento = false;
   }
 
- salvarPagamento(): void {
+  salvarPagamento(): void {
+  console.log('═══════════════════════════════════════════');
+  console.log('💰 INICIANDO SALVAMENTO DE PAGAMENTO');
+  console.log('═══════════════════════════════════════════');
+  
   if (!this.reserva) {
+    console.error('❌ Reserva não encontrada');
     alert('Reserva não encontrada');
     return;
   }
 
   if (!this.pagFormaPagamento) {
+    console.error('❌ Forma de pagamento não selecionada');
     alert('Selecione uma forma de pagamento');
     return;
   }
 
   if (this.pagValor <= 0) {
+    console.error('❌ Valor inválido:', this.pagValor);
     alert('Valor inválido');
     return;
   }
 
   if (this.pagValor > (this.reserva.totalApagar || 0)) {
+    console.error('❌ Valor maior que saldo:', this.pagValor, '>', this.reserva.totalApagar);
     alert(`Valor maior que saldo (R$ ${(this.reserva.totalApagar || 0).toFixed(2)})`);
     return;
   }
+
+  // ✅ PEGAR O ID DO USUÁRIO LOGADO
+  const usuarioId = this.authService.getUsuarioId();
+  console.log('👤 Usuario ID:', usuarioId);
 
   const dto = {
     reservaId: this.reserva.id,
@@ -1848,27 +2127,73 @@ gerarFatura(): void {
     observacao: this.pagObs || undefined
   };
 
-  console.log('💳 Enviando pagamento:', dto);
+  console.log('📦 DTO preparado:', dto);
 
-  this.http.post('http://localhost:8080/api/pagamentos', dto).subscribe({
-    next: () => {
-      alert('✅ Pagamento registrado!');
-      this.fecharModalPagamento();
-      if (this.reserva) {
-        this.carregarReserva(this.reserva.id);
+  const url = `http://localhost:8080/api/pagamentos?usuarioId=${usuarioId}`;
+  console.log('🌐 URL da requisição:', url);
+
+  // ✅ ADICIONAR usuarioId COMO QUERY PARAMETER
+  this.http.post(url, dto).subscribe({
+    next: (response: any) => {
+      console.log('═══════════════════════════════════════════');
+      console.log('✅ RESPOSTA DO BACKEND:');
+      console.log('═══════════════════════════════════════════');
+      console.log('📊 Response completo:', response);
+      console.log('✔️ Sucesso:', response.sucesso);
+      console.log('💰 Pagamento:', response.pagamento);
+      
+      if (response.sucesso || response.pagamento) {
+        alert('✅ Pagamento registrado com sucesso!');
+        this.fecharModalPagamento();
+        if (this.reserva) {
+          this.carregarReserva(this.reserva.id);
+        }
+      } else {
+        alert('⚠️ ' + (response.mensagem || 'Pagamento registrado, mas sem confirmação'));
       }
     },
     error: (err: any) => {
-      console.log('═══════════════════════════════════════');
-      console.log('❌ ERRO AO REGISTRAR PAGAMENTO');
-      console.log('═══════════════════════════════════════');
-      console.log('Erro completo:', err);
-      console.log('err.error:', err.error);
-      console.log('err.message:', err.message);
-      console.log('err.status:', err.status);
+      console.log('═══════════════════════════════════════════');
+      console.error('❌ ERRO AO REGISTRAR PAGAMENTO');
+      console.log('═══════════════════════════════════════════');
+      console.error('📊 Erro completo:', err);
+      console.error('🔢 Status Code:', err.status);
+      console.error('📝 Status Text:', err.statusText);
+      console.error('🌐 URL:', err.url);
+      console.error('📋 Headers:', err.headers);
       
-      // ✅ EXTRAIR MENSAGEM DE ERRO CORRETAMENTE
+      if (err.error) {
+        console.error('💥 Corpo do erro (error):', err.error);
+        console.error('📄 Tipo do erro:', typeof err.error);
+        
+        if (typeof err.error === 'object') {
+          console.error('🔍 Erro em JSON:', JSON.stringify(err.error, null, 2));
+        }
+      }
+      
+      console.error('📨 Message:', err.message);
+      console.log('═══════════════════════════════════════════');
+      
       let mensagemErro = 'Erro ao registrar pagamento';
+      
+      // ✅ TRATAMENTO ESPECÍFICO PARA CAIXA FECHADO
+      if (err.status === 403 && err.error?.tipo === 'CAIXA_FECHADO') {
+        alert('⚠️ CAIXA FECHADO!\n\n' + err.error.erro + '\n\nAbra o caixa antes de fazer pagamentos.');
+        return;
+      }
+      
+      // ✅ TRATAMENTO PARA ERRO DE CONEXÃO
+      if (err.status === 0) {
+        alert('❌ Erro de conexão!\n\nVerifique se o backend está rodando em http://localhost:8080');
+        return;
+      }
+      
+      // ✅ TRATAMENTO PARA ERRO DE AUTENTICAÇÃO
+      if (err.status === 401) {
+        alert('⚠️ Não autorizado!\n\nFaça login novamente.');
+        this.router.navigate(['/login']);
+        return;
+      }
       
       if (err.error) {
         if (typeof err.error === 'string') {
@@ -1877,15 +2202,8 @@ gerarFatura(): void {
           mensagemErro = err.error.message;
         } else if (err.error.erro) {
           mensagemErro = err.error.erro;
-        } else {
-          mensagemErro = JSON.stringify(err.error);
         }
-      } else if (err.message) {
-        mensagemErro = err.message;
       }
-      
-      console.log('📝 Mensagem extraída:', mensagemErro);
-      console.log('═══════════════════════════════════════');
       
       alert('❌ Erro: ' + mensagemErro);
     }
@@ -1955,6 +2273,14 @@ gerarFatura(): void {
       }
     });
   }
+
+  calcularTotalDescontos(): string {
+  if (!this.reserva?.descontos || this.reserva.descontos.length === 0) {
+    return '0,00';
+  }
+  const total = this.reserva.descontos.reduce((sum, desc) => sum + desc.valor, 0);
+  return this.formatarMoeda(total);
+}
 
   // ============= TRANSFERÊNCIA =============
   abrirModalTransferencia(): void {
@@ -2052,396 +2378,89 @@ gerarFatura(): void {
   }
 
   // ============= FINALIZAR / CANCELAR =============
-  finalizarReserva(): void {
-  if (!this.reserva) return;
+  finalizarCheckout(): void {
+    if (!this.reserva) return;
 
-  // ✅ CAPTURAR O SALDO ANTES DE FINALIZAR (apenas para impressão)
-  const saldoAntesDeFinalizar = this.reserva.totalApagar || 0;
-
-   
-  console.log('=====================================');
-  console.log('💰 FRONTEND - ANTES DE FINALIZAR:');
-  console.log('   Saldo capturado:', saldoAntesDeFinalizar);
-  console.log('   Reserva ID:', this.reserva.id);
-  console.log('=====================================');
-
-
-  
-  // Confirmação simples
-  if (saldoAntesDeFinalizar > 0) {
-    const confirmacao = confirm(
-      `⚠️ ATENÇÃO: Ainda há saldo devedor de R$ ${saldoAntesDeFinalizar.toFixed(2)}\n\n` +
-      `Deseja finalizar mesmo assim?\n\n` +
-      `Será gerada uma FATURA com o valor a pagar.`
-    );
+    const temSaldo = (this.reserva.totalApagar || 0) > 0;
     
-    if (!confirmacao) return;
-  } else {
-    const confirmacao = confirm('✅ Confirma a finalização da reserva?\n\nO apartamento ficará em status LIMPEZA.');
-    if (!confirmacao) return;
+    if (temSaldo) {
+      this.finalizarReservaFaturada();
+    } else {
+      this.finalizarReservaPaga();
+    }
   }
 
-  // ✅ FINALIZAR NO BACKEND (SEM ENVIAR NADA ALÉM DO QUE ENVIAVA ANTES)
-  this.http.patch(`http://localhost:8080/api/reservas/${this.reserva.id}/finalizar`, {}).subscribe({
-    next: () => {
-      alert('✅ Reserva finalizada com sucesso!');
+  finalizarReservaFaturada(): void {
+    if (!this.reserva) return;
 
-      console.log('=====================================');
-      console.log('💰 FRONTEND - APÓS FINALIZAR:');
-      console.log('   Saldo que será usado na impressão:', saldoAntesDeFinalizar);
-      console.log('=====================================');
-      
-      
-      // ✅ RECARREGAR RESERVA
-      this.carregarReserva(this.reserva!.id);
-      
-      // ✅ OFERECER IMPRESSÃO
-      setTimeout(() => {
-        const temSaldo = saldoAntesDeFinalizar > 0;
-        const tipoDoc = temSaldo ? 'FATURA' : 'RECIBO';
+    const saldoDevedor = this.reserva.totalApagar || 0;
+
+    const confirmacao = confirm(
+      `⚠️ FINALIZAR FATURADA?\n\n` +
+      `Saldo devedor: R$ ${this.formatarMoeda(saldoDevedor)}\n\n` +
+      `✅ Reserva será finalizada\n` +
+      `🧹 Apartamento irá para LIMPEZA\n` +
+      `💳 Valor será enviado para Contas a Receber`
+    );
+
+    if (!confirmacao) return;
+
+    this.http.patch(`http://localhost:8080/api/reservas/${this.reserva.id}/finalizar`, {}).subscribe({
+      next: () => {
+        alert('✅ Reserva finalizada! Valor enviado para Contas a Receber.');
+        this.carregarReserva(this.reserva!.id);
         
-        const imprimirDoc = confirm(`📄 Deseja imprimir ${temSaldo ? 'a' : 'o'} ${tipoDoc} agora?`);
+        setTimeout(() => {
+          const imprimir = confirm('📄 Deseja imprimir a FATURA agora?');
+          if (imprimir) {
+            this.gerarFatura();
+          }
+        }, 500);
+      },
+      error: (err: any) => {
+        let mensagemErro = 'Erro ao finalizar reserva';
         
-        if (imprimirDoc) {
-          if (temSaldo) {
-            // Imprimir FATURA com o saldo capturado
-            this.imprimirFaturaFinalizada(saldoAntesDeFinalizar);
-          } else {
-            // Imprimir RECIBO
+        if (err.error && err.error.erro) {
+          mensagemErro = err.error.erro;
+        } else if (err.error && err.error.message) {
+          mensagemErro = err.error.message;
+        }
+        
+        alert(mensagemErro);
+      }
+    });
+  }
+
+  finalizarReservaPaga(): void {
+    if (!this.reserva) return;
+
+    const confirmacao = confirm(
+      `💚 FINALIZAR PAGA?\n\n` +
+      `Total: R$ ${this.formatarMoeda(this.reserva.totalHospedagem)}\n` +
+      `Recebido: R$ ${this.formatarMoeda(this.reserva.totalRecebido)}\n\n` +
+      `✅ Reserva será finalizada\n` +
+      `🧹 Apartamento irá para LIMPEZA`
+    );
+
+    if (!confirmacao) return;
+
+    this.http.patch(`http://localhost:8080/api/reservas/${this.reserva.id}/finalizar-paga`, {}).subscribe({
+      next: () => {
+        alert('✅ Reserva finalizada com sucesso!');
+        this.carregarReserva(this.reserva!.id);
+        
+        setTimeout(() => {
+          const imprimir = confirm('📄 Deseja imprimir o RECIBO agora?');
+          if (imprimir) {
             this.gerarRecibo();
           }
-        }
-      }, 500);
-    },
-    error: (err: any) => {
-      alert('❌ Erro: ' + (err.error?.message || err.message));
-    }
-  });
-}
-
-  imprimirFaturaFinalizada(valorAPagar: number): void {
-  if (!this.reserva) return;
-
-  console.log('📄 Imprimindo FATURA com valor a pagar:', valorAPagar);
-
-  const htmlImpressao = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Fatura - Reserva #${this.reserva.id}</title>
-      <style>
-        @page { size: 80mm auto; margin: 0; }
-        body { 
-          font-family: 'Courier New', monospace; 
-          font-size: 12px; 
-          width: 80mm; 
-          margin: 0; 
-          padding: 5mm;
-        }
-        .cabecalho { text-align: center; margin-bottom: 10px; }
-        .cabecalho h1 { font-size: 18px; margin: 0; letter-spacing: 2px; }
-        .cnpj, .endereco { font-size: 11px; margin: 2px 0; }
-        .separador { text-align: center; margin: 8px 0; font-size: 10px; }
-        .titulo-documento { text-align: center; margin: 10px 0; }
-        .titulo-documento h2 { font-size: 14px; margin: 0; }
-        .numero-reserva { font-size: 13px; font-weight: bold; margin: 5px 0; }
-        .data-emissao { font-size: 10px; margin: 2px 0; }
-        .secao { margin: 10px 0; }
-        .secao h3 { font-size: 12px; margin: 0 0 8px 0; text-decoration: underline; }
-        .secao p { margin: 4px 0; font-size: 11px; line-height: 1.4; }
-        .linha-valor { display: flex; justify-content: space-between; margin: 5px 0; font-size: 11px; }
-        .linha-valor.subtotal { font-weight: bold; margin-top: 8px; }
-        .linha-valor.total { font-size: 14px; font-weight: bold; margin: 8px 0; }
-        .declaracao { text-align: center; margin: 15px 0; font-size: 11px; }
-        .declaracao p { margin: 3px 0; }
-        .assinatura { margin-top: 20px; text-align: center; }
-        .linha-assinatura { border-top: 1px solid #000; margin: 15px 20px 5px 20px; }
-        .label-assinatura { font-size: 10px; margin: 2px 0; }
-        .rodape { text-align: center; margin-top: 15px; font-size: 11px; }
-        .rodape p { margin: 3px 0; }
-        .destaque-apagar { background: #000; color: #fff; padding: 8px; text-align: center; margin: 10px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="cabecalho">
-        <h1>HOTEL DI VAN</h1>
-        <p class="cnpj">CNPJ: 07.757.726/0001-12</p>
-        <p class="endereco">Arapiraca - AL</p>
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-      </div>
-
-      <div class="titulo-documento">
-        <h2>FATURA - PAGAMENTO FATURADO</h2>
-        <p class="numero-reserva">Reserva Nº ${this.reserva.id}</p>
-        <p class="data-emissao">${this.dataAtualCompleta()}</p>
-      </div>
-
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-
-      <div class="secao">
-        <h3>DADOS DO HÓSPEDE</h3>
-        <p><strong>Nome:</strong> ${this.reserva.cliente?.nome}</p>
-        <p><strong>CPF:</strong> ${this.formatarCPF(this.reserva.cliente?.cpf)}</p>
-        <p><strong>Telefone:</strong> ${this.reserva.cliente?.celular || this.reserva.cliente?.telefone || 'Não informado'}</p>
-      </div>
-
-      <div class="separador">- - - - - - - - - - - - - - -</div>
-
-      <div class="secao">
-        <h3>PERÍODO DA HOSPEDAGEM</h3>
-        <p><strong>Apartamento:</strong> ${this.reserva.apartamento?.numeroApartamento}</p>
-        <p><strong>Check-in:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckin)}</p>
-        <p><strong>Check-out:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckout)}</p>
-        <p><strong>Total de Diárias:</strong> ${this.reserva.quantidadeDiaria} dia(s)</p>
-        <p><strong>Hóspedes:</strong> ${this.reserva.quantidadeHospede} pessoa(s)</p>
-      </div>
-
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-
-      <div class="secao">
-        <h3>DISCRIMINAÇÃO DE VALORES</h3>
-        <div class="linha-valor">
-          <span>Diárias (${this.reserva.quantidadeDiaria}x):</span>
-          <span>R$ ${this.formatarMoeda(this.reserva.totalDiaria)}</span>
-        </div>
-        <div class="linha-valor">
-          <span>Consumo:</span>
-          <span>R$ ${this.formatarMoeda(this.reserva.totalProduto || 0)}</span>
-        </div>
-        ${(this.reserva.desconto || 0) > 0 ? `
-          <div class="linha-valor">
-            <span>Desconto:</span>
-            <span>- R$ ${this.formatarMoeda(this.reserva.desconto)}</span>
-          </div>
-        ` : ''}
-        <div class="separador">- - - - - - - - - - - - - - -</div>
-        <div class="linha-valor subtotal">
-          <span>Subtotal:</span>
-          <span>R$ ${this.formatarMoeda(this.reserva.totalHospedagem)}</span>
-        </div>
-        ${(this.reserva.totalRecebido || 0) > 0 ? `
-          <div class="linha-valor">
-            <span>Já Recebido:</span>
-            <span>- R$ ${this.formatarMoeda(this.reserva.totalRecebido)}</span>
-          </div>
-        ` : ''}
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-        <div class="linha-valor total">
-          <span>VALOR A PAGAR:</span>
-          <span>R$ ${this.formatarMoeda(valorAPagar)}</span>
-        </div>
-      </div>
-
-      <div class="destaque-apagar">
-        <p style="margin: 0; font-size: 13px; font-weight: bold;">
-          VALOR A PAGAR: R$ ${this.formatarMoeda(valorAPagar)}
-        </p>
-      </div>
-
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-
-      <div class="declaracao">
-        <p>O Sr(a). ${this.reserva.cliente?.nome}</p>
-        <p>deverá pagar a importância de</p>
-        <p><strong>R$ ${this.formatarMoeda(valorAPagar)}</strong></p>
-        <p>referente à hospedagem no período citado.</p>
-      </div>
-
-      <div class="assinatura">
-        <div class="linha-assinatura"></div>
-        <p class="label-assinatura">Assinatura do Hóspede</p>
-        <div class="linha-assinatura"></div>
-        <p class="label-assinatura">Hotel Di Van</p>
-        <p class="label-assinatura">Data: ${this.dataAtualSimples()}</p>
-      </div>
-
-      <div class="rodape">
-        <p>Esta fatura deverá ser paga</p>
-        <p>conforme acordado.</p>
-      </div>
-
-      <script>
-        window.onload = function() {
-          window.print();
-          window.onafterprint = function() {
-            window.close();
-          };
-        };
-      </script>
-    </body>
-    </html>
-  `;
-
-  const janelaImpressao = window.open('', '_blank', 'width=800,height=600');
-  if (janelaImpressao) {
-    janelaImpressao.document.write(htmlImpressao);
-    janelaImpressao.document.close();
+        }, 500);
+      },
+      error: (err: any) => {
+        alert('❌ Erro: ' + (err.error?.erro || err.error?.message || err.message));
+      }
+    });
   }
-}
-
-
-  
-// ============= GERAR FATURA COM VALOR ESPECÍFICO =============
-gerarFaturaComValor(valorAPagar: number): void {
-  if (!this.reserva) return;
-
-  const htmlImpressao = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Fatura - Reserva #${this.reserva.id}</title>
-      <style>
-        @page { size: 80mm auto; margin: 0; }
-        body { 
-          font-family: 'Courier New', monospace; 
-          font-size: 12px; 
-          width: 80mm; 
-          margin: 0; 
-          padding: 5mm;
-        }
-        .cabecalho { text-align: center; margin-bottom: 10px; }
-        .cabecalho h1 { font-size: 18px; margin: 0; letter-spacing: 2px; }
-        .cnpj, .endereco { font-size: 11px; margin: 2px 0; }
-        .separador { text-align: center; margin: 8px 0; font-size: 10px; }
-        .titulo-documento { text-align: center; margin: 10px 0; }
-        .titulo-documento h2 { font-size: 14px; margin: 0; }
-        .numero-reserva { font-size: 13px; font-weight: bold; margin: 5px 0; }
-        .data-emissao { font-size: 10px; margin: 2px 0; }
-        .secao { margin: 10px 0; }
-        .secao h3 { font-size: 12px; margin: 0 0 8px 0; text-decoration: underline; }
-        .secao p { margin: 4px 0; font-size: 11px; line-height: 1.4; }
-        .linha-valor { display: flex; justify-content: space-between; margin: 5px 0; font-size: 11px; }
-        .linha-valor.subtotal { font-weight: bold; margin-top: 8px; }
-        .linha-valor.total { font-size: 14px; font-weight: bold; margin: 8px 0; }
-        .declaracao { text-align: center; margin: 15px 0; font-size: 11px; }
-        .declaracao p { margin: 3px 0; }
-        .assinatura { margin-top: 20px; text-align: center; }
-        .linha-assinatura { border-top: 1px solid #000; margin: 15px 20px 5px 20px; }
-        .label-assinatura { font-size: 10px; margin: 2px 0; }
-        .rodape { text-align: center; margin-top: 15px; font-size: 11px; }
-        .rodape p { margin: 3px 0; }
-        .destaque-apagar { background: #000; color: #fff; padding: 8px; text-align: center; margin: 10px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="cabecalho">
-        <h1>HOTEL DI VAN</h1>
-        <p class="cnpj">CNPJ: 07.757.726/0001-12</p>
-        <p class="endereco">Arapiraca - AL</p>
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-      </div>
-
-      <div class="titulo-documento">
-        <h2>FATURA - PAGAMENTO FATURADO</h2>
-        <p class="numero-reserva">Reserva Nº ${this.reserva.id}</p>
-        <p class="data-emissao">${this.dataAtualCompleta()}</p>
-      </div>
-
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-
-      <div class="secao">
-        <h3>DADOS DO HÓSPEDE</h3>
-        <p><strong>Nome:</strong> ${this.reserva.cliente?.nome}</p>
-        <p><strong>CPF:</strong> ${this.formatarCPF(this.reserva.cliente?.cpf)}</p>
-        <p><strong>Telefone:</strong> ${this.reserva.cliente?.celular || this.reserva.cliente?.telefone || 'Não informado'}</p>
-      </div>
-
-      <div class="separador">- - - - - - - - - - - - - - -</div>
-
-      <div class="secao">
-        <h3>PERÍODO DA HOSPEDAGEM</h3>
-        <p><strong>Apartamento:</strong> ${this.reserva.apartamento?.numeroApartamento}</p>
-        <p><strong>Check-in:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckin)}</p>
-        <p><strong>Check-out:</strong> ${this.formatarDataCompleta(this.reserva.dataCheckout)}</p>
-        <p><strong>Total de Diárias:</strong> ${this.reserva.quantidadeDiaria} dia(s)</p>
-        <p><strong>Hóspedes:</strong> ${this.reserva.quantidadeHospede} pessoa(s)</p>
-      </div>
-
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-
-      <div class="secao">
-        <h3>DISCRIMINAÇÃO DE VALORES</h3>
-        <div class="linha-valor">
-          <span>Diárias (${this.reserva.quantidadeDiaria}x):</span>
-          <span>R$ ${this.formatarMoeda(this.reserva.totalDiaria)}</span>
-        </div>
-        <div class="linha-valor">
-          <span>Consumo:</span>
-          <span>R$ ${this.formatarMoeda(this.reserva.totalProduto || 0)}</span>
-        </div>
-        ${(this.reserva.desconto || 0) > 0 ? `
-          <div class="linha-valor">
-            <span>Desconto:</span>
-            <span>- R$ ${this.formatarMoeda(this.reserva.desconto)}</span>
-          </div>
-        ` : ''}
-        <div class="separador">- - - - - - - - - - - - - - -</div>
-        <div class="linha-valor subtotal">
-          <span>Subtotal:</span>
-          <span>R$ ${this.formatarMoeda(this.reserva.totalHospedagem)}</span>
-        </div>
-        ${(this.reserva.totalRecebido || 0) > 0 ? `
-          <div class="linha-valor">
-            <span>Já Recebido:</span>
-            <span>- R$ ${this.formatarMoeda(this.reserva.totalRecebido)}</span>
-          </div>
-        ` : ''}
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-        <div class="linha-valor total">
-          <span>VALOR A PAGAR:</span>
-          <span>R$ ${this.formatarMoeda(valorAPagar)}</span>
-        </div>
-      </div>
-
-      <div class="destaque-apagar">
-        <p style="margin: 0; font-size: 13px; font-weight: bold;">
-          VALOR A PAGAR: R$ ${this.formatarMoeda(valorAPagar)}
-        </p>
-      </div>
-
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-
-      <div class="declaracao">
-        <p>O Sr(a). ${this.reserva.cliente?.nome}</p>
-        <p>deverá pagar a importância de</p>
-        <p><strong>R$ ${this.formatarMoeda(valorAPagar)}</strong></p>
-        <p>referente à hospedagem no período citado.</p>
-      </div>
-
-      <div class="assinatura">
-        <div class="linha-assinatura"></div>
-        <p class="label-assinatura">Assinatura do Hóspede</p>
-        <div class="linha-assinatura"></div>
-        <p class="label-assinatura">Hotel Di Van</p>
-        <p class="label-assinatura">Data: ${this.dataAtualSimples()}</p>
-      </div>
-
-      <div class="rodape">
-        <p>Esta fatura deverá ser paga</p>
-        <p>conforme acordado.</p>
-      </div>
-
-      <script>
-        window.onload = function() {
-          console.log('Imprimindo FATURA - Valor a pagar: R$ ${this.formatarMoeda(valorAPagar)}');
-          window.print();
-          window.onafterprint = function() {
-            window.close();
-          };
-        };
-      </script>
-    </body>
-    </html>
-  `;
-
-  const janelaImpressao = window.open('', '_blank', 'width=800,height=600');
-  if (janelaImpressao) {
-    janelaImpressao.document.write(htmlImpressao);
-    janelaImpressao.document.close();
-  }
-}
 
   cancelarReserva(): void {
     if (!this.reserva) return;
@@ -2466,5 +2485,189 @@ gerarFaturaComValor(valorAPagar: number): void {
     });
   }
 
+  // ============= ESTORNO =============
+  abrirModalEstorno(extrato: any): void {
+    this.extratoParaEstornar = extrato;
+    this.motivoEstorno = '';
+    this.criarLancamentoCorreto = false;
+    this.produtoCorretoId = 0;
+    this.quantidadeCorreta = 1;
+    
+    // Carregar produtos disponíveis
+    this.carregarProdutosDisponiveis();
+    
+    this.modalEstorno = true;
+  }
+
+  fecharModalEstorno(): void {
+    this.modalEstorno = false;
+    this.extratoParaEstornar = null;
+  }
+
+  confirmarEstorno(): void {
+    if (!this.extratoParaEstornar) {
+      alert('⚠️ Erro: Lançamento não encontrado');
+      return;
+    }
+
+    if (!this.motivoEstorno || this.motivoEstorno.trim() === '') {
+      alert('⚠️ Motivo do estorno é obrigatório');
+      return;
+    }
+
+    if (this.criarLancamentoCorreto) {
+      if (this.produtoCorretoId === 0) {
+        alert('⚠️ Selecione o produto correto');
+        return;
+      }
+      if (this.quantidadeCorreta <= 0) {
+        alert('⚠️ Quantidade correta deve ser maior que zero');
+        return;
+      }
+    }
+
+    const confirmacao = confirm(
+      `⚠️ CONFIRMA O ESTORNO?\n\n` +
+      `Lançamento: ${this.extratoParaEstornar.descricao}\n` +
+      `Valor: R$ ${this.formatarMoeda(this.extratoParaEstornar.totalLancamento)}\n` +
+      `Motivo: ${this.motivoEstorno}\n\n` +
+      `Esta ação será registrada para auditoria.`
+    );
+
+    if (!confirmacao) return;
+
+    const request: any = {
+      extratoId: this.extratoParaEstornar.id,
+      motivo: this.motivoEstorno,
+      criarLancamentoCorreto: this.criarLancamentoCorreto
+    };
+
+    if (this.criarLancamentoCorreto) {
+      request.correcao = {
+        produtoId: this.produtoCorretoId,
+        quantidade: this.quantidadeCorreta
+      };
+    }
+
+    this.http.post('http://localhost:8080/api/estornos/consumo-apartamento', request).subscribe({
+      next: (response: any) => {
+        alert('✅ Estorno realizado com sucesso!');
+        this.fecharModalEstorno();
+        if (this.reserva) {
+          this.carregarReserva(this.reserva.id);
+        }    
+
+
+      },
+      error: (err: any) => {
+        console.error('❌ Erro no estorno:', err);
+        alert('❌ Erro: ' + (err.error?.erro || err.error?.message || err.message));
+      }
+    });
+  }
+
+  // ============= DESCONTO =============
+abrirModalDesconto(): void {
+  this.valorDesconto = 0;
+  this.motivoDesconto = '';
+  this.modalDesconto = true;
+
+}
+
+fecharModalDesconto(): void {
+  this.modalDesconto = false;
+}
+
+confirmarDesconto(): void {
+  if (!this.reserva) {
+    alert('⚠️ Reserva não encontrada');
+    return;
+  }
+
+  if (this.valorDesconto <= 0) {
+    alert('⚠️ Valor do desconto deve ser maior que zero');
+    return;
+  }
+
+  const totalDescontosAtual = this.reserva.descontos ? 
+    this.reserva.descontos.reduce((sum, d) => sum + d.valor, 0) : 0;
   
+  const novoTotalDescontos = totalDescontosAtual + this.valorDesconto;
+
+  if (novoTotalDescontos > (this.reserva.totalHospedagem || 0)) {
+    alert('⚠️ Total de descontos não pode ser maior que o total da hospedagem');
+    return;
+  }
+
+  const novoTotal = (this.reserva.totalHospedagem || 0) - novoTotalDescontos;
+  const novoSaldo = novoTotal - (this.reserva.totalRecebido || 0);
+
+  const confirmacao = confirm(
+    `💰 CONFIRMA APLICAÇÃO DO DESCONTO?\n\n` +
+    `Valor do Desconto: R$ ${this.formatarMoeda(this.valorDesconto)}\n` +
+    `Descontos Atuais: R$ ${this.formatarMoeda(totalDescontosAtual)}\n` +
+    `Novo Total de Descontos: R$ ${this.formatarMoeda(novoTotalDescontos)}\n` +
+    `Total da Hospedagem: R$ ${this.formatarMoeda(this.reserva.totalHospedagem)}\n` +
+    `Novo Saldo: R$ ${this.formatarMoeda(novoSaldo)}\n\n` +
+    `${this.motivoDesconto ? 'Motivo: ' + this.motivoDesconto : ''}`
+  );
+
+  if (!confirmacao) return;
+
+  const usuarioId = this.authService.getUsuarioId();
+
+  const dto = {
+    reservaId: this.reserva.id,
+    valor: this.valorDesconto,
+    motivo: this.motivoDesconto || 'Desconto aplicado',
+    usuarioId: usuarioId
+  };
+
+  this.http.post(`http://localhost:8080/api/descontos`, dto).subscribe({
+    next: (response: any) => {
+      alert('✅ Desconto aplicado com sucesso!');
+      this.fecharModalDesconto();
+      if (this.reserva) {
+        this.carregarReserva(this.reserva.id);
+      }
+    },
+    error: (err: any) => {
+      console.error('❌ Erro ao aplicar desconto:', err);
+      alert('❌ Erro: ' + (err.error?.erro || err.error?.message || err.message));
+    }
+  });
+}
+
+removerDesconto(descontoId: number): void {
+  if (!this.reserva) return;
+
+  const desc = this.reserva.descontos?.find(d => d.id === descontoId);
+  if (!desc) return;
+
+  const confirmacao = confirm(
+    `⚠️ CONFIRMA REMOÇÃO DO DESCONTO?\n\n` +
+    `Valor: R$ ${this.formatarMoeda(desc.valor)}\n` +
+    `Motivo: ${desc.motivo || 'Sem motivo'}\n\n` +
+    `Este desconto será removido permanentemente.`
+  );
+
+  if (!confirmacao) return;
+
+  const usuarioId = this.authService.getUsuarioId();
+
+  this.http.delete(
+    `http://localhost:8080/api/descontos/${descontoId}?usuarioId=${usuarioId}`
+  ).subscribe({
+    next: (response: any) => {
+      alert('✅ Desconto removido com sucesso!');
+      if (this.reserva) {
+        this.carregarReserva(this.reserva.id);
+      }
+    },
+    error: (err: any) => {
+      console.error('❌ Erro ao remover desconto:', err);
+      alert('❌ Erro: ' + (err.error?.erro || err.error?.message || err.message));
+    }
+  });
+}
 }

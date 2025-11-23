@@ -1,6 +1,11 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { FechamentoCaixaService } from '../services/fechamento-caixa.service';
+import { AuthService } from '../services/auth.service';
+import { CaixaStateService } from '../services/caixa-state.service'; // ✅ ADICIONAR IMPORT
+import { Subscription } from 'rxjs';
+
 
 @Component({
   selector: 'app-sidebar',
@@ -22,6 +27,32 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
           <span class="icon">📋</span>
           <span class="label">Reservas</span>
         </a>   
+
+        <div class="nav-divider"></div>
+        
+        <!-- ✅ INDICADOR DE STATUS -->
+        <div class="nav-item caixa-status" *ngIf="caixaAberto">
+          <span class="icon">✅</span>
+          <span class="label">Caixa Aberto</span>
+        </div>
+
+        <!-- ✅ LINK PARA ABRIR CAIXA -->
+        <a *ngIf="!caixaAberto" 
+           routerLink="/abertura-caixa" 
+           class="nav-item nav-caixa abrir">
+          <span class="icon">🔓</span>
+          <span class="label">Abrir Caixa</span>
+        </a>
+
+        <!-- ✅ LINK DIRETO (SEM BOTÃO!) PARA MEU CAIXA -->
+        <a *ngIf="caixaAberto && caixaAberto.id" 
+           [routerLink]="['/fechamento-caixa', caixaAberto.id]"
+           class="nav-item nav-caixa visualizar">
+          <span class="icon">💰</span>
+          <span class="label">Meu Caixa</span>
+        </a>
+
+        <div class="nav-divider"></div>
 
         <a routerLink="/clientes" routerLinkActive="active" class="nav-item">
           <span class="icon">👥</span>
@@ -53,6 +84,11 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
           <span class="label">Produtos</span>
         </a>
 
+        <a routerLink="/pdv" routerLinkActive="active" class="nav-item">
+         <span class="icon">💳</span>
+         <span class="label">PDV - Vendas</span>
+        </a>
+
         <a routerLink="/contas-receber" routerLinkActive="active" class="nav-item">
            <span class="icon">💰</span>
            <span class="label">Contas a Receber</span>
@@ -71,11 +107,6 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
         <a routerLink="/empresas" routerLinkActive="active" class="nav-item">
           <span class="icon">🏢</span>
           <span class="label">Empresas</span>
-        </a>
-
-        <a routerLink="/contas-receber" routerLinkActive="active" class="nav-item">
-          <span class="icon">💰</span>
-          <span class="label">Contas a Receber</span>
         </a>
 
         <a routerLink="/comandas-rapidas" 
@@ -147,6 +178,10 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
       text-decoration: none;
       transition: all 0.2s ease;
       cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
     }
 
     .nav-item:hover {
@@ -160,6 +195,42 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
       border-left: 3px solid #3498db;
     }
 
+    .caixa-status {
+      background: rgba(46, 204, 113, 0.2);
+      color: #2ecc71;
+      font-weight: 700;
+      cursor: default;
+    }
+
+    .caixa-status:hover {
+      background: rgba(46, 204, 113, 0.2);
+      color: #2ecc71;
+    }
+
+    .nav-caixa {
+      font-weight: 700;
+    }
+
+    .nav-caixa.abrir {
+      background: rgba(46, 204, 113, 0.2);
+      color: #2ecc71;
+    }
+
+    .nav-caixa.abrir:hover {
+      background: rgba(46, 204, 113, 0.3);
+      color: #27ae60;
+    }
+
+    .nav-caixa.visualizar {
+      background: rgba(52, 152, 219, 0.2);
+      color: #3498db;
+    }
+
+    .nav-caixa.visualizar:hover {
+      background: rgba(52, 152, 219, 0.3);
+      color: #2980b9;
+    }
+
     .icon {
       font-size: 1.3em;
       width: 24px;
@@ -169,6 +240,12 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
     .label {
       font-size: 0.95em;
       font-weight: 500;
+    }
+
+    .nav-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.1);
+      margin: 10px 20px;
     }
 
     .sidebar-footer {
@@ -189,25 +266,6 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
       cursor: pointer;
       transition: all 0.2s ease;
     }
-
-    .nav-section {
-    padding: 15px 20px 5px 20px;
-    margin-top: 10px;
-  }
-
-  .section-title {
-    font-size: 0.75em;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: rgba(255,255,255,0.5);
-    text-transform: uppercase;
-  }
-
-  .nav-divider {
-    height: 1px;
-    background: rgba(255,255,255,0.1);
-    margin: 10px 20px;
-  }
 
     .logout-btn:hover {
       background: rgba(231, 76, 60, 0.4);
@@ -234,12 +292,87 @@ import { Router, RouterLink, RouterLinkActive } from '@angular/router';
     }
   `]
 })
-export class SidebarComponent {
+export class SidebarComponent implements OnInit, OnDestroy {
   private router = inject(Router);
+  private fechamentoCaixaService = inject(FechamentoCaixaService);
+  private authService = inject(AuthService);
+  private caixaStateService = inject(CaixaStateService); // ✅ ADICIONAR INJECT
+
+  caixaAberto: any = null;
+  usuarioId: number = 1;
+  
+  private verificandoCaixa = false;
+  private subscription?: Subscription;
+  private caixaAtualizadoSubscription?: Subscription;
+
+  ngOnInit(): void {
+    console.log('🔄 Sidebar inicializado - COM EVENTOS');
+    
+    this.usuarioId = this.authService.getUsuarioId();
+    
+    // ✅ VERIFICAR APENAS UMA VEZ
+    setTimeout(() => {
+      this.verificarCaixaAberto();
+    }, 1000);
+
+    // ✅ ESCUTAR NOTIFICAÇÕES DE ATUALIZAÇÃO
+    this.caixaAtualizadoSubscription = this.caixaStateService.caixaAtualizado$.subscribe(
+      (atualizado) => {
+        if (atualizado) {
+          console.log('🔔 Recebida notificação de atualização do caixa');
+          this.verificarCaixaAberto();
+          this.caixaStateService.resetarNotificacao(); // ✅ RESETAR
+        }
+      }
+    );
+  }
+
+  ngOnDestroy(): void {
+    console.log('🛑 Sidebar destruído');
+    
+    if (this.subscription) {
+      this.subscription.unsubscribe();
+    }
+
+    if (this.caixaAtualizadoSubscription) {
+      this.caixaAtualizadoSubscription.unsubscribe();
+    }
+  }
+
+  verificarCaixaAberto(): void {
+    console.log('🔵 Verificando caixa...');
+    
+    if (this.verificandoCaixa) {
+      return;
+    }
+
+    this.verificandoCaixa = true;
+
+    this.subscription = this.fechamentoCaixaService.buscarCaixaAberto(this.usuarioId).subscribe({
+      next: (caixa) => {
+        this.verificandoCaixa = false;
+
+        if (caixa && caixa.id) {
+          this.caixaAberto = caixa;
+          console.log('✅ Caixa aberto - ID:', caixa.id);
+        } else {
+          this.caixaAberto = null;
+          console.log('📭 Nenhum caixa aberto');
+        }
+      },
+      error: () => {
+        this.verificandoCaixa = false;
+        this.caixaAberto = null;
+        console.log('📭 Nenhum caixa aberto (erro)');
+      }
+    });
+  }
 
   logout(): void {
     if (confirm('🚪 Deseja realmente sair?')) {
       localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
+      localStorage.removeItem('user');
       this.router.navigate(['/login']);
     }
   }

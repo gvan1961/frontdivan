@@ -1,9 +1,12 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
+import { ComandaConsumoComponent } from './comanda-consumo/comanda-consumo.component';
 
 import { ReservaDetalhesTeste } from './pages/reservas/reserva-detalhes-teste.app';
 
 // IMPORTS
+import { RelatorioDetalhadoCaixaComponent } from './components/fechamento-caixa/relatorio-detalhado-caixa/relatorio-detalhado-caixa.component';
+import { PDVComponent } from './pdv/pdv.component';
 import { ReservaEditApp } from './pages/reservas/reserva-edit.app';
 import { LoginApp } from './pages/login/login.app';
 import { LayoutComponent } from './components/layout.component';
@@ -30,7 +33,8 @@ import { ApartamentosLimpezaApp } from './pages/apartamentos/apartamentos-limpez
 import { ContasReceberListaApp } from './pages/contas-receber/contas-receber-lista.app';
 import { ComandasRapidasComponent } from './pages/comandas/comandas-rapidas.component';
 import { MapaReservasApp } from './pages/reservas/mapa-reservas.app';
-
+import { AberturaCaixaComponent } from './components/abertura-caixa/abertura-caixa.component';
+import { FechamentoCaixaComponent } from './components/fechamento-caixa/fechamento-caixa.component';
 export const routes: Routes = [
   // LOGIN (sem layout)
   { path: 'login', component: LoginApp },
@@ -87,8 +91,17 @@ export const routes: Routes = [
       { path: 'categorias/editar/:id', component: CategoriaFormApp },
       { path: 'categorias', component: CategoriaListaApp },
 
+      { path: 'pdv', component: PDVComponent },
+
       // ===== CONTAS A RECEBER =====
       { path: 'contas-receber', component: ContasReceberListaApp },
+
+      { path: 'comanda-consumo/:id', component: ComandaConsumoComponent },
+
+     
+      { path: 'abertura-caixa', component: AberturaCaixaComponent },
+      { path: 'fechamento-caixa/:id/relatorio', component: RelatorioDetalhadoCaixaComponent },  // ← ADICIONAR
+      { path: 'fechamento-caixa/:id', component: FechamentoCaixaComponent },
       
       // ===== EMPRESAS =====
       { path: 'empresas/nova', component: EmpresaFormApp },

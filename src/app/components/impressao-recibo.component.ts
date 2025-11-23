@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -53,28 +53,22 @@ import { CommonModule } from '@angular/common';
           <span>Diárias ({{ reserva.quantidadeDiaria }}x):</span>
           <span>R$ {{ formatarValor(reserva.totalDiaria) }}</span>
         </div>
-        <div class="linha-valor">
+        <div class="linha-valor" *ngIf="getConsumo() > 0">
           <span>Consumo:</span>
-          <span>R$ {{ formatarValor(reserva.totalConsumo || 0) }}</span>
+          <span>R$ {{ formatarValor(getConsumo()) }}</span>
         </div>
-        <div class="linha-valor" *ngIf="reserva.desconto > 0">
+        <div class="linha-valor" *ngIf="getDesconto() > 0">
           <span>Desconto:</span>
-          <span>- R$ {{ formatarValor(reserva.desconto) }}</span>
+          <span>- R$ {{ formatarValor(getDesconto()) }}</span>
         </div>
-        <div class="separador">- - - - - - - - - - - - - - -</div>
-        <div class="linha-valor subtotal">
-          <span>Subtotal:</span>
-          <span>R$ {{ formatarValor(reserva.totalHospedagem) }}</span>
-        </div>
-        <div class="linha-valor" *ngIf="reserva.totalRecebido > 0">
-          <span>Já Recebido:</span>
-          <span>- R$ {{ formatarValor(reserva.totalRecebido) }}</span>
-        </div>
-        <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-        <div class="linha-valor total">
-          <span>TOTAL A PAGAR:</span>
-          <span>R$ {{ formatarValor(reserva.totalApagar) }}</span>
-        </div>
+      </div>
+
+      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+
+      <!-- TOTAL PAGO -->
+      <div class="linha-valor total">
+        <span>TOTAL PAGO:</span>
+        <span>R$ {{ formatarValor(calcularTotalComDesconto()) }}</span>
       </div>
 
       <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
@@ -85,18 +79,10 @@ import { CommonModule } from '@angular/common';
         <p><strong>{{ formaPagamento }}</strong></p>
       </div>
 
-      <!-- OBSERVAÇÕES -->
-      <div class="observacoes" *ngIf="observacoes">
-        <h3>OBSERVAÇÕES:</h3>
-        <p>{{ observacoes }}</p>
-      </div>
-
-      <div class="separador">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
-
       <!-- DECLARAÇÃO -->
       <div class="declaracao">
         <p>Recebi(emos) de {{ reserva.clienteNome }}</p>
-        <p>a importância de <strong>R$ {{ formatarValor(reserva.totalApagar) }}</strong></p>
+        <p>a importância de <strong>R$ {{ formatarValor(calcularTotalComDesconto()) }}</strong></p>
         <p>referente à hospedagem no período citado.</p>
       </div>
 
@@ -113,13 +99,9 @@ import { CommonModule } from '@angular/common';
         <p>Volte sempre!</p>        
       </div>     
     </div>
-
-    
-
-
-
   `,
   styles: [`
+    /* Manter os mesmos estilos */
     .impressao-container {
       width: 80mm;
       font-family: 'Courier New', monospace;
@@ -128,170 +110,67 @@ import { CommonModule } from '@angular/common';
       background: white;
       color: black;
     }
-
-    .cabecalho {
-      text-align: center;
-      margin-bottom: 10px;
-    }
-
-    .cabecalho h1 {
-      font-size: 18px;
-      font-weight: bold;
-      margin: 0 0 5px 0;
-      letter-spacing: 2px;
-    }
-
-    .cnpj, .endereco {
-      font-size: 11px;
-      margin: 2px 0;
-    }
-
-    .separador {
-      text-align: center;
-      margin: 8px 0;
-      font-size: 10px;
-    }
-
-    .titulo-documento {
-      text-align: center;
-      margin: 10px 0;
-    }
-
-    .titulo-documento h2 {
-      font-size: 14px;
-      font-weight: bold;
-      margin: 0;
-    }
-
-    .numero-reserva {
-      font-size: 13px;
-      font-weight: bold;
-      margin: 5px 0 2px 0;
-    }
-
-    .data-emissao {
-      font-size: 10px;
-      margin: 2px 0;
-    }
-
-    .secao {
-      margin: 10px 0;
-    }
-
-    .secao h3 {
-      font-size: 12px;
-      font-weight: bold;
-      margin: 0 0 8px 0;
-      text-decoration: underline;
-    }
-
-    .secao p {
-      margin: 4px 0;
-      font-size: 11px;
-      line-height: 1.4;
-    }
-
-    .linha-valor {
-      display: flex;
-      justify-content: space-between;
-      margin: 5px 0;
-      font-size: 11px;
-    }
-
-    .linha-valor.subtotal {
-      font-weight: bold;
-      margin-top: 8px;
-    }
-
-    .linha-valor.total {
-      font-size: 14px;
-      font-weight: bold;
-      margin: 8px 0;
-    }
-
-    .observacoes {
-      margin: 10px 0;
-      padding: 8px;
-      border: 1px solid #000;
-    }
-
-    .observacoes h3 {
-      font-size: 11px;
-      margin: 0 0 5px 0;
-    }
-
-    .observacoes p {
-      font-size: 10px;
-      margin: 0;
-      white-space: pre-wrap;
-    }
-
-    .declaracao {
-      text-align: center;
-      margin: 15px 0;
-      font-size: 11px;
-    }
-
-    .declaracao p {
-      margin: 3px 0;
-    }
-
-    .assinatura {
-      margin-top: 20px;
-      text-align: center;
-    }
-
-    .linha-assinatura {
-      border-top: 1px solid #000;
-      margin: 15px 20px 5px 20px;
-    }
-
-    .label-assinatura {
-      font-size: 10px;
-      margin: 2px 0;
-    }
-
-    .rodape {
-      text-align: center;
-      margin-top: 15px;
-      font-size: 11px;
-    }
-
-    .rodape p {
-      margin: 3px 0;
-    }
-
+    .cabecalho { text-align: center; margin-bottom: 10px; }
+    .cabecalho h1 { font-size: 18px; font-weight: bold; margin: 0 0 5px 0; letter-spacing: 2px; }
+    .cnpj, .endereco { font-size: 11px; margin: 2px 0; }
+    .separador { text-align: center; margin: 8px 0; font-size: 10px; }
+    .titulo-documento { text-align: center; margin: 10px 0; }
+    .titulo-documento h2 { font-size: 14px; font-weight: bold; margin: 0; }
+    .numero-reserva { font-size: 13px; font-weight: bold; margin: 5px 0 2px 0; }
+    .data-emissao { font-size: 10px; margin: 2px 0; }
+    .secao { margin: 10px 0; }
+    .secao h3 { font-size: 12px; font-weight: bold; margin: 0 0 8px 0; text-decoration: underline; }
+    .secao p { margin: 4px 0; font-size: 11px; line-height: 1.4; }
+    .linha-valor { display: flex; justify-content: space-between; margin: 5px 0; font-size: 11px; }
+    .linha-valor.total { font-size: 14px; font-weight: bold; margin: 8px 0; }
+    .declaracao { text-align: center; margin: 15px 0; font-size: 11px; }
+    .declaracao p { margin: 3px 0; }
+    .assinatura { margin-top: 20px; text-align: center; }
+    .linha-assinatura { border-top: 1px solid #000; margin: 15px 20px 5px 20px; }
+    .label-assinatura { font-size: 10px; margin: 2px 0; }
+    .rodape { text-align: center; margin-top: 15px; font-size: 11px; }
+    .rodape p { margin: 3px 0; }
     @media print {
-      .impressao-container {
-        width: 80mm;
-        min-height: 140mm;
-        padding: 5mm;
-      }
-
-      @page {
-        size: 80mm auto;
-        margin: 0;
-      }
-
-      body {
-        margin: 0;
-        padding: 0;
-      }
+      .impressao-container { width: 80mm; min-height: 140mm; padding: 5mm; }
+      @page { size: 80mm auto; margin: 0; }
+      body { margin: 0; padding: 0; }
     }
   `]
 })
-export class ImpressaoReciboComponent {
+export class ImpressaoReciboComponent implements OnInit {
   @Input() reserva: any;
   @Input() observacoes: string = '';
   @Input() formaPagamento: string = '';
 
+  ngOnInit() {
+    console.log('📊 Dados da reserva no recibo:', this.reserva);
+    console.log('   totalHospedagem:', this.reserva?.totalHospedagem);
+    console.log('   totalDiaria:', this.reserva?.totalDiaria);
+    console.log('   desconto:', this.reserva?.desconto);
+    console.log('   totalRecebido:', this.reserva?.totalRecebido);
+  }
+
+  // ✅ CALCULAR TOTAL COM DESCONTO
+  calcularTotalComDesconto(): number {
+    const totalHospedagem = this.reserva?.totalHospedagem || 0;
+    const desconto = this.reserva?.desconto || 0;
+    return totalHospedagem - desconto;
+  }
+
+  // ✅ OBTER DESCONTO
+  getDesconto(): number {
+    return this.reserva?.desconto || 0;
+  }
+
+  // ✅ OBTER CONSUMO
+  getConsumo(): number {
+    return this.reserva?.totalConsumo || this.reserva?.totalProduto || 0;
+  }
+
   dataAtual(): string {
     return new Date().toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     });
   }
 
@@ -301,18 +180,15 @@ export class ImpressaoReciboComponent {
 
   formatarData(data: string): string {
     return new Date(data).toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     });
   }
 
   formatarValor(valor: number): string {
+    if (!valor) return '0,00';
     return valor.toLocaleString('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      minimumFractionDigits: 2, maximumFractionDigits: 2
     });
   }
 

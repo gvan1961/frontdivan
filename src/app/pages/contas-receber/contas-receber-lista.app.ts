@@ -367,7 +367,7 @@ interface FiltrosAvancados {
               <option value="PIX">PIX</option>
               <option value="CARTAO_DEBITO">Cartão Débito</option>
               <option value="CARTAO_CREDITO">Cartão Crédito</option>
-              <option value="TRANSFERENCIA_BANCARIA">Transferência</option>
+              <option value="TRANSFERENCIA">Transferência</option>
             </select>
           </div>
 
@@ -1218,45 +1218,65 @@ export class ContasReceberListaApp implements OnInit {
   }
 
   carregarDados(): void {
-    this.loading = true;
+  this.loading = true;
 
-    // Carregar contas
-    this.contaReceberService.listarTodas().subscribe({
-      next: (contas) => {
-        this.contas = contas;
-        
-        // Carregar reservas para ter datas de checkin/checkout
-        this.http.get<any[]>('http://localhost:8080/api/reservas').subscribe({
-          next: (reservas) => {
-            this.reservas = reservas;
-            
-            // Associar reserva às contas
-            this.contas.forEach(conta => {
-              (conta as any).reserva = reservas.find(r => r.id === conta.reservaId);
-            });
-            
-            this.aplicarFiltros();
-            this.loading = false;
-          }
-        });
-      },
-      error: (err) => {
-        console.error('❌ Erro:', err);
-        this.loading = false;
-        alert('Erro ao carregar contas');
-      }
-    });
-
-    // Carregar empresas
-    this.http.get<any[]>('http://localhost:8080/api/empresas').subscribe({
-      next: (data) => this.empresas = data
-    });
-
-    // Carregar clientes
-    this.http.get<any[]>('http://localhost:8080/api/clientes').subscribe({
-      next: (data) => this.clientes = data
-    });
+  // 1️⃣ Carregar contas
+  this.contaReceberService.listarTodas().subscribe({
+    next: (contas) => {
+      this.contas = contas;
+      
+      // 2️⃣ Carregar TODAS as reservas
+      this.http.get<any[]>('http://localhost:8080/api/reservas').subscribe({
+        next: (reservas) => {
+          this.reservas = reservas;
+          
+          // 3️⃣ ✅ ASSOCIAR RESERVA COMPLETA A CADA CONTA
+          // 3️⃣ ✅ ASSOCIAR RESERVA COMPLETA A CADA CONTA
+this.contas.forEach(conta => {
+  const reserva = reservas.find(r => r.id === conta.reservaId);
+  if (reserva) {
+    // Adicionar dados da reserva na conta
+    (conta as any).reserva = reserva;
+    (conta as any).numeroApartamento = reserva.apartamento?.numeroApartamento;
+    (conta as any).quantidadeHospede = reserva.quantidadeHospede;
+    (conta as any).quantidadeDiaria = reserva.quantidadeDiaria;
+    (conta as any).totalDiaria = reserva.totalDiaria;
+    (conta as any).totalConsumo = reserva.totalProduto;
+    (conta as any).totalHospedagem = reserva.totalHospedagem;
+    
+    // ✅ USAR DADOS DA CONTA (não da reserva!)
+    (conta as any).totalRecebido = conta.valorPago; // ← DA CONTA!
+    (conta as any).desconto = reserva.desconto || 0;
+    (conta as any).totalApagar = conta.saldo; // ← DA CONTA!
   }
+});
+          
+          this.aplicarFiltros();
+          this.loading = false;
+        },
+        error: (err) => {
+          console.error('❌ Erro ao carregar reservas:', err);
+          this.loading = false;
+        }
+      });
+    },
+    error: (err) => {
+      console.error('❌ Erro ao carregar contas:', err);
+      this.loading = false;
+      alert('Erro ao carregar contas');
+    }
+  });
+
+  // Carregar empresas
+  this.http.get<any[]>('http://localhost:8080/api/empresas').subscribe({
+    next: (data) => this.empresas = data
+  });
+
+  // Carregar clientes
+  this.http.get<any[]>('http://localhost:8080/api/clientes').subscribe({
+    next: (data) => this.clientes = data
+  });
+}
 
   // ========== FILTROS ==========
 

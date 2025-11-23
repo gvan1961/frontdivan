@@ -1,0 +1,392 @@
+<div class="container" *ngIf="!carregando && caixa">
+  
+  <!-- HEADER -->
+  <div class="header">
+    <button class="btn-voltar" (click)="voltar()">
+      ← Voltar
+    </button>
+    
+    <div class="header-info">
+      <h1>💰 Fechamento de Caixa #{{ caixa.id }}</h1>
+      <div class="status-badge" [style.background]="getCorStatus(caixa.status)">
+        {{ caixa.status }}
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <button 
+        class="btn btn-imprimir"
+        (click)="imprimirRelatorio()"
+        *ngIf="caixa.status === 'FECHADO'">
+        🖨️ Imprimir
+      </button>
+      
+      <button 
+        class="btn btn-fechar"
+        (click)="abrirModalFechamento()"
+        *ngIf="caixa.status === 'ABERTO'">
+        🔒 Fechar Caixa
+      </button>
+    </div>
+  </div>
+  
+  <!-- INFORMAÇÕES GERAIS -->
+  <div class="info-card">
+    <div class="info-grid">
+      <div class="info-item">
+        <span class="label">👤 Responsável:</span>
+        <span class="value">{{ caixa.usuarioNome }}</span>
+      </div>
+      
+      <div class="info-item">
+        <span class="label">⏰ Turno:</span>
+        <span class="value">{{ caixa.turno || '-' }}</span>
+      </div>
+      
+      <div class="info-item">
+        <span class="label">🔓 Abertura:</span>
+        <span class="value">{{ formatarDataHora(caixa.dataHoraAbertura) }}</span>
+      </div>
+      
+      <div class="info-item" *ngIf="caixa.dataHoraFechamento">
+        <span class="label">🔒 Fechamento:</span>
+        <span class="value">{{ formatarDataHora(caixa.dataHoraFechamento) }}</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ABAS -->
+  <div class="tabs">
+    <button 
+      class="tab"
+      [class.active]="abaAtiva === 'resumo'"
+      (click)="abaAtiva = 'resumo'">
+      📊 Resumo Financeiro
+    </button>
+    
+    <button 
+      class="tab"
+      [class.active]="abaAtiva === 'movimentacao'"
+      (click)="abaAtiva = 'movimentacao'">
+      📈 Movimentação
+    </button>
+
+    <button (click)="verRelatorioDetalhado(caixa.id)" class="btn-relatorio">
+      📊 Relatório Detalhado
+    </button>
+    
+    <button 
+      class="tab"
+      [class.active]="abaAtiva === 'apartamentos'"
+      (click)="abaAtiva = 'apartamentos'"
+      *ngIf="caixa.resumoApartamentos && caixa.resumoApartamentos.length > 0">
+      🏠 Por Apartamento
+    </button>
+    
+    <button 
+      class="tab"
+      [class.active]="abaAtiva === 'detalhes'"
+      (click)="abaAtiva = 'detalhes'"
+      *ngIf="caixa.detalhes && caixa.detalhes.length > 0">
+      📋 Detalhes
+    </button>
+  </div>
+
+  <!-- CONTEÚDO DAS ABAS -->
+  <div class="tab-content">
+
+    <!-- ABA: RESUMO FINANCEIRO -->
+<div *ngIf="abaAtiva === 'resumo'" class="resumo-financeiro">
+  
+  <!-- DINHEIRO RECEBIDO -->
+  <div class="card card-recebido">
+    <h2>💰 Dinheiro Recebido (Entrou no Caixa)</h2>
+    <p class="section-subtitle">Valores efetivamente recebidos - deve ser entregue ao gerente</p>
+    
+    <div class="formas-pagamento">
+      
+      <div class="forma-item" *ngIf="(caixa.totalDinheiro || 0) > 0">
+        <div class="forma-icon">💵</div>
+        <div class="forma-info">
+          <span class="forma-label">Dinheiro</span>
+          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalDinheiro) }}</span>
+        </div>
+      </div>
+      
+      <div class="forma-item" *ngIf="(caixa.totalPix || 0) > 0">
+        <div class="forma-icon">📱</div>
+        <div class="forma-info">
+          <span class="forma-label">PIX</span>
+          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalPix) }}</span>
+        </div>
+      </div>
+      
+      <div class="forma-item" *ngIf="(caixa.totalCartaoDebito || 0) > 0">
+        <div class="forma-icon">💳</div>
+        <div class="forma-info">
+          <span class="forma-label">Cartão Débito</span>
+          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalCartaoDebito) }}</span>
+        </div>
+      </div>
+      
+      <div class="forma-item" *ngIf="(caixa.totalCartaoCredito || 0) > 0">
+        <div class="forma-icon">💳</div>
+        <div class="forma-info">
+          <span class="forma-label">Cartão Crédito</span>
+          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalCartaoCredito) }}</span>
+        </div>
+      </div>
+      
+      <div class="forma-item" *ngIf="(caixa.totalTransferencia || 0) > 0">
+        <div class="forma-icon">🏦</div>
+        <div class="forma-info">
+          <span class="forma-label">Transferência</span>
+          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalTransferencia) }}</span>
+        </div>
+      </div>
+      
+    </div>
+    
+    <div class="total-section recebido">
+      <span>💰 TOTAL RECEBIDO (PARA ENTREGAR):</span>
+      <strong>R$ {{ formatarMoeda(calcularTotalRecebidoAVista()) }}</strong>
+    </div>
+  </div>
+  
+  <!-- FATURADO -->
+  <div class="card card-faturado" *ngIf="(caixa.totalFaturado || 0) > 0">
+    <h2>📄 Faturado (Não Entrou no Caixa)</h2>
+    <p class="section-subtitle">Vendas a crédito - enviadas para Contas a Receber</p>
+    
+    <div class="formas-pagamento">
+      <div class="forma-item faturado-destaque">
+        <div class="forma-icon">📄</div>
+        <div class="forma-info">
+          <span class="forma-label">A Receber (Crédito)</span>
+          <span class="forma-valor faturado-valor">R$ {{ formatarMoeda(caixa.totalFaturado) }}</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="total-section faturado">
+      <span>📋 TOTAL FATURADO (A RECEBER):</span>
+      <strong>R$ {{ formatarMoeda(caixa.totalFaturado) }}</strong>
+    </div>
+  </div>
+  
+  <!-- RESUMO FINAL -->
+  <div class="card card-resumo-final">
+    <h2>💼 Resumo Final do Caixa</h2>
+    
+    <div class="resumo-final-grid">
+      <div class="resumo-final-item destaque-verde">
+        <div class="item-icon">💰</div>
+        <div class="item-content">
+          <span class="item-label">Dinheiro para Entregar</span>
+          <span class="item-valor">R$ {{ formatarMoeda(calcularTotalRecebidoAVista()) }}</span>
+          <span class="item-hint">Valores à vista recebidos</span>
+        </div>
+      </div>
+      
+      <div class="resumo-final-item destaque-laranja" *ngIf="(caixa.totalFaturado || 0) > 0">
+        <div class="item-icon">📋</div>
+        <div class="item-content">
+          <span class="item-label">Contas a Receber</span>
+          <span class="item-valor">R$ {{ formatarMoeda(caixa.totalFaturado) }}</span>
+          <span class="item-hint">Valores faturados (crédito)</span>
+        </div>
+      </div>
+      
+      <div class="resumo-final-item destaque-azul">
+        <div class="item-icon">📊</div>
+        <div class="item-content">
+          <span class="item-label">Movimentação Total</span>
+          <span class="item-valor">R$ {{ formatarMoeda(calcularTotalFormasPagamento()) }}</span>
+          <span class="item-hint">Recebido + Faturado</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+</div>
+    
+    <!-- ABA: MOVIMENTAÇÃO -->
+    <div *ngIf="abaAtiva === 'movimentacao'" class="movimentacao">
+      <p class="section-subtitle">Quantidade de operações realizadas no período</p>
+      
+      <div class="stats-grid">
+        
+        <div class="stat-card">
+          <div class="stat-icon">🔑</div>
+          <div class="stat-info">
+            <span class="stat-label">Check-ins</span>
+            <span class="stat-value">{{ caixa.quantidadeCheckins }}</span>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon">👋</div>
+          <div class="stat-info">
+            <span class="stat-label">Check-outs</span>
+            <span class="stat-value">{{ caixa.quantidadeCheckouts }}</span>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon">📋</div>
+          <div class="stat-info">
+            <span class="stat-label">Reservas Criadas</span>
+            <span class="stat-value">{{ caixa.quantidadeReservas }}</span>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon">🛒</div>
+          <div class="stat-info">
+            <span class="stat-label">Vendas à Vista</span>
+            <span class="stat-value">{{ caixa.quantidadeVendas }}</span>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+    
+    <!-- ABA: POR APARTAMENTO -->
+    <div *ngIf="abaAtiva === 'apartamentos'" class="apartamentos">
+      <p class="section-subtitle">Pagamentos recebidos agrupados por apartamento</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Apartamento</th>
+              <th>Cliente</th>
+              <th>Total Pagamentos</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let resumo of caixa.resumoApartamentos">
+              <td><strong>{{ resumo.numeroApartamento }}</strong></td>
+              <td>{{ resumo.clienteNome || '-' }}</td>
+              <td class="valor">R$ {{ formatarMoeda(resumo.totalPagamentos) }}</td>
+              <td>
+                <span class="badge" [class]="'badge-' + resumo.status?.toLowerCase()">
+                  {{ resumo.status || '-' }}
+                </span>
+              </td>
+            </tr>
+            
+            <tr class="total-row">
+              <td colspan="2"><strong>TOTAL GERAL</strong></td>
+              <td class="valor"><strong>R$ {{ formatarMoeda(calcularTotalPorApartamento()) }}</strong></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- ABA: DETALHES -->
+    <div *ngIf="abaAtiva === 'detalhes'" class="detalhes">
+      <p class="section-subtitle">Todas as movimentações detalhadas do período (diárias, produtos, pagamentos)</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Tipo</th>
+              <th>Descrição</th>
+              <th>Apartamento</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let detalhe of caixa.detalhes">
+              <td>{{ formatarDataHora(detalhe.dataHora) }}</td>
+              <td>
+                <span class="badge badge-tipo">{{ detalhe.tipo }}</span>
+              </td>
+              <td>{{ detalhe.descricao }}</td>
+              <td>{{ detalhe.apartamentoNumero || '-' }}</td>
+              <td class="valor" [class.negativo]="detalhe.valor < 0">
+                R$ {{ formatarMoeda(detalhe.valor) }}
+              </td>
+            </tr>
+            
+            <tr class="total-row">
+              <td colspan="4"><strong>SALDO TOTAL</strong></td>
+              <td class="valor"><strong>R$ {{ formatarMoeda(calcularTotalDetalhes()) }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+  </div>
+  
+  <!-- OBSERVAÇÕES -->
+  <div class="card" *ngIf="caixa.observacoes">
+    <h2>📝 Observações</h2>
+    <div class="observacoes">
+      {{ caixa.observacoes }}
+    </div>
+  </div>
+  
+</div>
+
+<!-- LOADING -->
+<div class="loading" *ngIf="carregando">
+  <div class="spinner"></div>
+  <p>Carregando caixa...</p>
+</div>
+
+<!-- MODAL DE FECHAMENTO -->
+<div class="modal-overlay" *ngIf="mostrarModalFechamento" (click)="mostrarModalFechamento = false">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>🔒 Fechar Caixa</h2>
+    </div>
+    
+    <div class="modal-body">
+      <p><strong>Resumo do Fechamento:</strong></p>
+      
+      <div class="resumo-fechamento">
+        <div class="item">
+          <span>Total Líquido:</span>
+          <span class="valor-destaque">R$ {{ formatarMoeda(caixa!.totalLiquido) }}</span>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label>Observações do Fechamento:</label>
+        <textarea 
+          [(ngModel)]="observacoesFechamento"
+          rows="4"
+          placeholder="Digite observações sobre o fechamento..."
+          class="textarea">
+        </textarea>
+      </div>
+      
+      <p class="aviso">⚠️ Após o fechamento, não será possível fazer alterações!</p>
+    </div>
+    
+    <div class="modal-footer">
+      <button 
+        class="btn btn-cancelar"
+        (click)="mostrarModalFechamento = false"
+        [disabled]="fechando">
+        Cancelar
+      </button>
+      
+      <button 
+        class="btn btn-confirmar"
+        (click)="fecharCaixa()"
+        [disabled]="fechando">
+        <span *ngIf="!fechando">Confirmar Fechamento</span>
+        <span *ngIf="fechando">Fechando...</span>
+      </button>
+    </div>
+  </div>
+</div>

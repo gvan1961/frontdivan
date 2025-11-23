@@ -82,6 +82,13 @@ import { AuthService } from '../../services/auth.service';
               <p>Gerenciar produtos e estoque</p>
             </div>
 
+            <!-- PDV - VENDAS -->
+              <div class="card pdv" (click)="navigate('/pdv')">
+              <div class="card-icon">💳</div>
+              <h3>PDV - Vendas</h3>
+              <p>Vendas à vista e faturadas</p>
+            </div>
+
             <!-- CATEGORIAS -->
             <div class="card" (click)="navigate('/categorias')">
               <div class="card-icon">🗂️</div>
@@ -220,6 +227,22 @@ import { AuthService } from '../../services/auth.service';
       .nav-brand h2 {
         font-size: 1.2em;
       }
+
+      .card.pdv {
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+  color: white;
+}
+
+.card.pdv h3,
+.card.pdv p,
+.card.pdv .card-icon {
+  color: white;
+}
+
+.card.pdv:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 0 12px 24px rgba(46, 204, 113, 0.3);
+}
 
       .card.limpeza {
   background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);

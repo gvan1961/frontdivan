@@ -1,23 +1,37 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
-  // Pega o token do localStorage
-  const token = localStorage.getItem('token');
-  
   console.log('🔐 Interceptor executado para:', req.url);
-  console.log('📝 Token completo:', token);
   
-  // Se tiver token, adiciona no header Authorization
+  // ✅ LISTA DE ROTAS QUE NÃO PRECISAM DE TOKEN
+  const rotasPublicas = [
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/public/'
+  ];
+  
+  // Verificar se é rota pública
+  const isRotaPublica = rotasPublicas.some(rota => req.url.includes(rota));
+  
+  if (isRotaPublica) {
+    console.log('⚠️ Rota pública detectada, pulando interceptor');
+    return next(req);
+  }
+  
+  // Pegar token do localStorage
+  const token = localStorage.getItem('token');
+  console.log('📝 Token encontrado:', token ? 'SIM' : 'NÃO');
+  
   if (token) {
-    req = req.clone({
+    console.log('✅ Adicionando token ao header Authorization');
+    const cloned = req.clone({
       setHeaders: {
         Authorization: `Bearer ${token}`
       }
     });
-    console.log('✅ Authorization Header:', req.headers.get('Authorization'));
+    return next(cloned);
   } else {
-    console.log('❌ Token não encontrado no localStorage!');
+    console.log('⚠️ Sem token, enviando requisição sem autenticação');
+    return next(req);
   }
-  
-  return next(req);
-};
+}; // <-- ESTAVA FALTANDO FECHAR AQUI

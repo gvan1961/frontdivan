@@ -1181,25 +1181,39 @@ export class MapaReservasApp implements OnInit {
   }
 
   podeReservar(): boolean {
-    if (!this.apartamentoSelecionado || !this.dataSelecionada) return false;
-
-    const chave = `${this.apartamentoSelecionado.id}-${this.dataSelecionada}`;
-    const reserva = this.mapaReservas.get(chave);
-
-    if (reserva) {
-      return false;
-    }
-
-    const dataClicada = new Date(this.dataSelecionada + 'T00:00:00');
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
-    if (dataClicada >= hoje) {
-      return true;
-    }
-
-    return this.apartamentoSelecionado.status === 'DISPONIVEL';
+  if (!this.apartamentoSelecionado || !this.dataSelecionada) {
+    console.log('❌ podeReservar: Faltam dados');
+    return false;
   }
+
+  const chave = `${this.apartamentoSelecionado.id}-${this.dataSelecionada}`;
+  const reserva = this.mapaReservas.get(chave);
+
+  if (reserva) {
+    console.log('❌ podeReservar: Já existe reserva nesta data');
+    return false;
+  }
+
+  const dataClicada = new Date(this.dataSelecionada + 'T00:00:00');
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  // ✅ PERMITIR RESERVAR SE:
+  // 1. Data é futura OU
+  // 2. Apartamento está DISPONÍVEL (mesmo que seja hoje)
+  const podeReservar = dataClicada >= hoje || this.apartamentoSelecionado.status === 'DISPONIVEL';
+  
+  console.log('═══════════════════════════════════════');
+  console.log('🔍 PODE RESERVAR?');
+  console.log('   Apartamento:', this.apartamentoSelecionado.numeroApartamento);
+  console.log('   Status:', this.apartamentoSelecionado.status);
+  console.log('   Data:', this.dataSelecionada);
+  console.log('   Data >= Hoje:', dataClicada >= hoje);
+  console.log('   Resultado:', podeReservar);
+  console.log('═══════════════════════════════════════');
+  
+  return podeReservar;
+}
 
   criarNovaReserva(): void {
     console.log('═══════════════════════════════════════');
