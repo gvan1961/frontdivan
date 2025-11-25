@@ -1,6 +1,8 @@
 <div class="container" *ngIf="!carregando && caixa">
   
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <!-- HEADER -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <div class="header">
     <button class="btn-voltar" (click)="voltar()">
       ← Voltar
@@ -30,7 +32,9 @@
     </div>
   </div>
   
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <!-- INFORMAÇÕES GERAIS -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <div class="info-card">
     <div class="info-grid">
       <div class="info-item">
@@ -55,7 +59,9 @@
     </div>
   </div>
   
-  <!-- ABAS -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- ABAS DE NAVEGAÇÃO -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <div class="tabs">
     <button 
       class="tab"
@@ -71,8 +77,11 @@
       📈 Movimentação
     </button>
 
-    <button (click)="verRelatorioDetalhado(caixa.id)" class="btn-relatorio">
-      📊 Relatório Detalhado
+    <button 
+      class="tab"
+      [class.active]="abaAtiva === 'produtos'"
+      (click)="abaAtiva = 'produtos'; carregarVendasDetalhadas()">
+      🛒 Produtos Vendidos
     </button>
     
     <button 
@@ -90,127 +99,139 @@
       *ngIf="caixa.detalhes && caixa.detalhes.length > 0">
       📋 Detalhes
     </button>
+
+    <button 
+      (click)="verRelatorioDetalhado(caixa.id)" 
+      class="btn btn-relatorio">
+      📊 Relatório Detalhado
+    </button>
   </div>
 
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <!-- CONTEÚDO DAS ABAS -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <div class="tab-content">
 
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <!-- ABA: RESUMO FINANCEIRO -->
-<div *ngIf="abaAtiva === 'resumo'" class="resumo-financeiro">
-  
-  <!-- DINHEIRO RECEBIDO -->
-  <div class="card card-recebido">
-    <h2>💰 Dinheiro Recebido (Entrou no Caixa)</h2>
-    <p class="section-subtitle">Valores efetivamente recebidos - deve ser entregue ao gerente</p>
-    
-    <div class="formas-pagamento">
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <div *ngIf="abaAtiva === 'resumo'" class="resumo-financeiro">
       
-      <div class="forma-item" *ngIf="(caixa.totalDinheiro || 0) > 0">
-        <div class="forma-icon">💵</div>
-        <div class="forma-info">
-          <span class="forma-label">Dinheiro</span>
-          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalDinheiro) }}</span>
+      <!-- DINHEIRO RECEBIDO -->
+      <div class="card card-recebido">
+        <h2>💰 Dinheiro Recebido (Entrou no Caixa)</h2>
+        <p class="section-subtitle">Valores efetivamente recebidos - deve ser entregue ao gerente</p>
+        
+        <div class="formas-pagamento">
+          
+          <div class="forma-item" *ngIf="(caixa.totalDinheiro || 0) > 0">
+            <div class="forma-icon">💵</div>
+            <div class="forma-info">
+              <span class="forma-label">Dinheiro</span>
+              <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalDinheiro) }}</span>
+            </div>
+          </div>
+          
+          <div class="forma-item" *ngIf="(caixa.totalPix || 0) > 0">
+            <div class="forma-icon">📱</div>
+            <div class="forma-info">
+              <span class="forma-label">PIX</span>
+              <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalPix) }}</span>
+            </div>
+          </div>
+          
+          <div class="forma-item" *ngIf="(caixa.totalCartaoDebito || 0) > 0">
+            <div class="forma-icon">💳</div>
+            <div class="forma-info">
+              <span class="forma-label">Cartão Débito</span>
+              <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalCartaoDebito) }}</span>
+            </div>
+          </div>
+          
+          <div class="forma-item" *ngIf="(caixa.totalCartaoCredito || 0) > 0">
+            <div class="forma-icon">💳</div>
+            <div class="forma-info">
+              <span class="forma-label">Cartão Crédito</span>
+              <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalCartaoCredito) }}</span>
+            </div>
+          </div>
+          
+          <div class="forma-item" *ngIf="(caixa.totalTransferencia || 0) > 0">
+            <div class="forma-icon">🏦</div>
+            <div class="forma-info">
+              <span class="forma-label">Transferência</span>
+              <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalTransferencia) }}</span>
+            </div>
+          </div>
+          
+        </div>
+        
+        <div class="total-section recebido">
+          <span>💰 TOTAL RECEBIDO (PARA ENTREGAR):</span>
+          <strong>R$ {{ formatarMoeda(calcularTotalRecebidoAVista()) }}</strong>
         </div>
       </div>
       
-      <div class="forma-item" *ngIf="(caixa.totalPix || 0) > 0">
-        <div class="forma-icon">📱</div>
-        <div class="forma-info">
-          <span class="forma-label">PIX</span>
-          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalPix) }}</span>
+      <!-- FATURADO -->
+      <div class="card card-faturado" *ngIf="(caixa.totalFaturado || 0) > 0">
+        <h2>📄 Faturado (Não Entrou no Caixa)</h2>
+        <p class="section-subtitle">Vendas a crédito - enviadas para Contas a Receber</p>
+        
+        <div class="formas-pagamento">
+          <div class="forma-item faturado-destaque">
+            <div class="forma-icon">📄</div>
+            <div class="forma-info">
+              <span class="forma-label">A Receber (Crédito)</span>
+              <span class="forma-valor faturado-valor">R$ {{ formatarMoeda(caixa.totalFaturado) }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="total-section faturado">
+          <span>📋 TOTAL FATURADO (A RECEBER):</span>
+          <strong>R$ {{ formatarMoeda(caixa.totalFaturado) }}</strong>
         </div>
       </div>
       
-      <div class="forma-item" *ngIf="(caixa.totalCartaoDebito || 0) > 0">
-        <div class="forma-icon">💳</div>
-        <div class="forma-info">
-          <span class="forma-label">Cartão Débito</span>
-          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalCartaoDebito) }}</span>
-        </div>
-      </div>
-      
-      <div class="forma-item" *ngIf="(caixa.totalCartaoCredito || 0) > 0">
-        <div class="forma-icon">💳</div>
-        <div class="forma-info">
-          <span class="forma-label">Cartão Crédito</span>
-          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalCartaoCredito) }}</span>
-        </div>
-      </div>
-      
-      <div class="forma-item" *ngIf="(caixa.totalTransferencia || 0) > 0">
-        <div class="forma-icon">🏦</div>
-        <div class="forma-info">
-          <span class="forma-label">Transferência</span>
-          <span class="forma-valor">R$ {{ formatarMoeda(caixa.totalTransferencia) }}</span>
+      <!-- RESUMO FINAL -->
+      <div class="card card-resumo-final">
+        <h2>💼 Resumo Final do Caixa</h2>
+        
+        <div class="resumo-final-grid">
+          <div class="resumo-final-item destaque-verde">
+            <div class="item-icon">💰</div>
+            <div class="item-content">
+              <span class="item-label">Dinheiro para Entregar</span>
+              <span class="item-valor">R$ {{ formatarMoeda(calcularTotalRecebidoAVista()) }}</span>
+              <span class="item-hint">Valores à vista recebidos</span>
+            </div>
+          </div>
+          
+          <div class="resumo-final-item destaque-laranja" *ngIf="(caixa.totalFaturado || 0) > 0">
+            <div class="item-icon">📋</div>
+            <div class="item-content">
+              <span class="item-label">Contas a Receber</span>
+              <span class="item-valor">R$ {{ formatarMoeda(caixa.totalFaturado) }}</span>
+              <span class="item-hint">Valores faturados (crédito)</span>
+            </div>
+          </div>
+          
+          <div class="resumo-final-item destaque-azul">
+            <div class="item-icon">📊</div>
+            <div class="item-content">
+              <span class="item-label">Movimentação Total</span>
+              <span class="item-valor">R$ {{ formatarMoeda(calcularTotalFormasPagamento()) }}</span>
+              <span class="item-hint">Recebido + Faturado</span>
+            </div>
+          </div>
         </div>
       </div>
       
     </div>
     
-    <div class="total-section recebido">
-      <span>💰 TOTAL RECEBIDO (PARA ENTREGAR):</span>
-      <strong>R$ {{ formatarMoeda(calcularTotalRecebidoAVista()) }}</strong>
-    </div>
-  </div>
-  
-  <!-- FATURADO -->
-  <div class="card card-faturado" *ngIf="(caixa.totalFaturado || 0) > 0">
-    <h2>📄 Faturado (Não Entrou no Caixa)</h2>
-    <p class="section-subtitle">Vendas a crédito - enviadas para Contas a Receber</p>
-    
-    <div class="formas-pagamento">
-      <div class="forma-item faturado-destaque">
-        <div class="forma-icon">📄</div>
-        <div class="forma-info">
-          <span class="forma-label">A Receber (Crédito)</span>
-          <span class="forma-valor faturado-valor">R$ {{ formatarMoeda(caixa.totalFaturado) }}</span>
-        </div>
-      </div>
-    </div>
-    
-    <div class="total-section faturado">
-      <span>📋 TOTAL FATURADO (A RECEBER):</span>
-      <strong>R$ {{ formatarMoeda(caixa.totalFaturado) }}</strong>
-    </div>
-  </div>
-  
-  <!-- RESUMO FINAL -->
-  <div class="card card-resumo-final">
-    <h2>💼 Resumo Final do Caixa</h2>
-    
-    <div class="resumo-final-grid">
-      <div class="resumo-final-item destaque-verde">
-        <div class="item-icon">💰</div>
-        <div class="item-content">
-          <span class="item-label">Dinheiro para Entregar</span>
-          <span class="item-valor">R$ {{ formatarMoeda(calcularTotalRecebidoAVista()) }}</span>
-          <span class="item-hint">Valores à vista recebidos</span>
-        </div>
-      </div>
-      
-      <div class="resumo-final-item destaque-laranja" *ngIf="(caixa.totalFaturado || 0) > 0">
-        <div class="item-icon">📋</div>
-        <div class="item-content">
-          <span class="item-label">Contas a Receber</span>
-          <span class="item-valor">R$ {{ formatarMoeda(caixa.totalFaturado) }}</span>
-          <span class="item-hint">Valores faturados (crédito)</span>
-        </div>
-      </div>
-      
-      <div class="resumo-final-item destaque-azul">
-        <div class="item-icon">📊</div>
-        <div class="item-content">
-          <span class="item-label">Movimentação Total</span>
-          <span class="item-valor">R$ {{ formatarMoeda(calcularTotalFormasPagamento()) }}</span>
-          <span class="item-hint">Recebido + Faturado</span>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-</div>
-    
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <!-- ABA: MOVIMENTAÇÃO -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <div *ngIf="abaAtiva === 'movimentacao'" class="movimentacao">
       <p class="section-subtitle">Quantidade de operações realizadas no período</p>
       
@@ -250,8 +271,100 @@
         
       </div>
     </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ABA: PRODUTOS VENDIDOS -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="secao-produtos" *ngIf="abaAtiva === 'produtos'">
+      <div class="secao-header">
+        <h3>🛒 Produtos Vendidos Neste Caixa</h3>
+        <p class="subtitulo">Detalhamento de todas as vendas de produtos por forma de pagamento</p>
+      </div>
+      
+      <!-- LOADING -->
+      <div *ngIf="carregandoVendas" class="loading-vendas">
+        <span>⏳ Carregando vendas...</span>
+      </div>
+      
+      <!-- SEM VENDAS -->
+      <div *ngIf="!carregandoVendas && vendasDetalhadas?.totalVendas === 0" class="sem-vendas">
+        <span>📭 Nenhuma venda de produtos neste caixa</span>
+      </div>
+      
+      <!-- CONTEÚDO DAS VENDAS -->
+      <div *ngIf="!carregandoVendas && vendasDetalhadas?.totalVendas > 0" class="vendas-container">
+        
+        <!-- RESUMO GERAL -->
+        <div class="resumo-vendas">
+          <div class="resumo-item">
+            <span class="resumo-label">Total de Vendas:</span>
+            <span class="resumo-valor">{{ vendasDetalhadas.totalVendas }}</span>
+          </div>
+          <div class="resumo-item">
+            <span class="resumo-label">Total de Produtos:</span>
+            <span class="resumo-valor">{{ vendasDetalhadas.totalProdutos }} itens</span>
+          </div>
+          <div class="resumo-item total">
+            <span class="resumo-label">Total Geral:</span>
+            <span class="resumo-valor">{{ vendasDetalhadas.totalGeral | currency:'BRL' }}</span>
+          </div>
+        </div>
+        
+        <!-- VENDAS POR FORMA DE PAGAMENTO -->
+        <div class="formas-pagamento-container">
+          <ng-container *ngFor="let forma of formasPagamentoVendas">
+            
+            <!-- CARD DA FORMA DE PAGAMENTO -->
+            <div class="forma-pagamento-card" *ngIf="temVendasNaForma(forma.key)">
+              
+              <!-- HEADER DO CARD -->
+              <div class="forma-header">
+                <span class="forma-icone">{{ forma.icone }}</span>
+                <span class="forma-nome">{{ forma.nome }}</span>
+                <span class="forma-total">{{ getTotalPorForma(forma.key) | currency:'BRL' }}</span>
+              </div>
+              
+              <div class="forma-subtotais">
+                <span>{{ getQtdVendasPorForma(forma.key) }} vendas</span>
+                <span>•</span>
+                <span>{{ getQtdProdutosPorForma(forma.key) }} produtos</span>
+              </div>
+              
+              <!-- LISTA DE VENDAS -->
+              <div class="vendas-lista">
+                <div class="venda-item" *ngFor="let venda of getVendasPorForma(forma.key)">
+                  
+                  <!-- HEADER DA VENDA -->
+                  <div class="venda-header">
+                    <span class="venda-id">📋 Venda #{{ venda.notaVendaId }}</span>
+                    <span class="venda-data">{{ venda.dataHora | date:'dd/MM/yyyy HH:mm' }}</span>
+                    <span class="venda-tipo">({{ venda.tipoVenda }})</span>
+                    <span class="venda-total">{{ venda.valorTotal | currency:'BRL' }}</span>
+                  </div>
+                  
+                  <!-- PRODUTOS DA VENDA -->
+                  <div class="produtos-lista">
+                    <div class="produto-item" *ngFor="let produto of venda.produtos">
+                      <span class="produto-nome">• {{ produto.nomeProduto }}</span>
+                      <span class="produto-qtd">({{ produto.quantidade }}x {{ produto.valorUnitario | currency:'BRL' }})</span>
+                      <span class="produto-total">{{ produto.totalItem | currency:'BRL' }}</span>
+                    </div>
+                  </div>
+                  
+                </div>
+              </div>
+              
+            </div>
+            
+          </ng-container>
+        </div>
+        
+      </div>
+    </div>
     
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <!-- ABA: POR APARTAMENTO -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <div *ngIf="abaAtiva === 'apartamentos'" class="apartamentos">
       <p class="section-subtitle">Pagamentos recebidos agrupados por apartamento</p>
       
@@ -287,7 +400,9 @@
       </div>
     </div>
     
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <!-- ABA: DETALHES -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <div *ngIf="abaAtiva === 'detalhes'" class="detalhes">
       <p class="section-subtitle">Todas as movimentações detalhadas do período (diárias, produtos, pagamentos)</p>
       
@@ -326,7 +441,9 @@
     
   </div>
   
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <!-- OBSERVAÇÕES -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <div class="card" *ngIf="caixa.observacoes">
     <h2>📝 Observações</h2>
     <div class="observacoes">
@@ -336,13 +453,17 @@
   
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- LOADING -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="loading" *ngIf="carregando">
   <div class="spinner"></div>
   <p>Carregando caixa...</p>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- MODAL DE FECHAMENTO -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="modal-overlay" *ngIf="mostrarModalFechamento" (click)="mostrarModalFechamento = false">
   <div class="modal" (click)="$event.stopPropagation()">
     <div class="modal-header">

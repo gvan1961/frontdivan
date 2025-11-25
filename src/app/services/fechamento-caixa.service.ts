@@ -124,6 +124,13 @@ export class FechamentoCaixaService {
   }
 
   /**
+ * ✅ BUSCAR VENDAS DETALHADAS DO CAIXA
+ */
+buscarVendasDetalhadas(id: number): Observable<any> {
+  return this.http.get<any>(`${this.apiUrl}/${id}/vendas-detalhadas`);
+}
+
+  /**
    * 🖨️ Gerar relatório (abre em nova aba)
    */
   gerarRelatorio(id: number): void {

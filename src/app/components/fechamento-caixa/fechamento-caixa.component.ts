@@ -21,6 +21,18 @@ export class FechamentoCaixaComponent implements OnInit {
   
   observacoesFechamento: string = '';
   mostrarModalFechamento: boolean = false;
+
+  // ✅ PRODUTOS VENDIDOS
+vendasDetalhadas: any = null;
+carregandoVendas = false;
+formasPagamentoVendas = [
+  { key: 'DINHEIRO', nome: 'Dinheiro', icone: '💵' },
+  { key: 'PIX', nome: 'PIX', icone: '📱' },
+  { key: 'CARTAO_DEBITO', nome: 'Cartão de Débito', icone: '💳' },
+  { key: 'CARTAO_CREDITO', nome: 'Cartão de Crédito', icone: '💳' },
+  { key: 'TRANSFERENCIA', nome: 'Transferência', icone: '🏦' },
+  { key: 'FATURADO', nome: 'Faturado', icone: '📄' }
+];
   
   // Abas
   abaAtiva: string = 'resumo'; // resumo, movimentacao, apartamentos, detalhes
@@ -99,7 +111,7 @@ export class FechamentoCaixaComponent implements OnInit {
 
         // ✅ NOTIFICAR O SIDEBAR
         this.caixaStateService.notificarAtualizacao();
-        
+
         this.carregarCaixa(); // Recarregar para mostrar dados atualizados
       },
       error: (error) => {
@@ -187,6 +199,81 @@ export class FechamentoCaixaComponent implements OnInit {
     (total, detalhe) => total + (detalhe.valor || 0), 
     0
   );
+}
+
+/**
+ * ✅ CARREGAR VENDAS DETALHADAS (PRODUTOS)
+ */
+carregarVendasDetalhadas(): void {
+  if (!this.caixaId || this.vendasDetalhadas) {
+    return; // Já carregou ou não tem caixa
+  }
+  
+  this.carregandoVendas = true;
+  console.log('🛒 Carregando vendas detalhadas do caixa #' + this.caixaId);
+  
+  this.fechamentoCaixaService.buscarVendasDetalhadas(this.caixaId).subscribe({
+    next: (response) => {
+      console.log('✅ Vendas detalhadas carregadas:', response);
+      this.vendasDetalhadas = response;
+      this.carregandoVendas = false;
+    },
+    error: (error) => {
+      console.error('❌ Erro ao carregar vendas detalhadas:', error);
+      this.carregandoVendas = false;
+    }
+  });
+}
+
+/**
+ * ✅ VERIFICAR SE TEM VENDAS NA FORMA DE PAGAMENTO
+ */
+temVendasNaForma(formaPagamento: string): boolean {
+  if (!this.vendasDetalhadas?.vendasPorFormaPagamento) {
+    return false;
+  }
+  const vendas = this.vendasDetalhadas.vendasPorFormaPagamento[formaPagamento];
+  return vendas && vendas.length > 0;
+}
+
+/**
+ * ✅ OBTER VENDAS POR FORMA DE PAGAMENTO
+ */
+getVendasPorForma(formaPagamento: string): any[] {
+  if (!this.vendasDetalhadas?.vendasPorFormaPagamento) {
+    return [];
+  }
+  return this.vendasDetalhadas.vendasPorFormaPagamento[formaPagamento] || [];
+}
+
+/**
+ * ✅ OBTER TOTAL POR FORMA DE PAGAMENTO
+ */
+getTotalPorForma(formaPagamento: string): number {
+  if (!this.vendasDetalhadas?.totaisPorFormaPagamento) {
+    return 0;
+  }
+  return this.vendasDetalhadas.totaisPorFormaPagamento[formaPagamento] || 0;
+}
+
+/**
+ * ✅ OBTER QUANTIDADE DE VENDAS POR FORMA
+ */
+getQtdVendasPorForma(formaPagamento: string): number {
+  if (!this.vendasDetalhadas?.quantidadeVendasPorFormaPagamento) {
+    return 0;
+  }
+  return this.vendasDetalhadas.quantidadeVendasPorFormaPagamento[formaPagamento] || 0;
+}
+
+/**
+ * ✅ OBTER QUANTIDADE DE PRODUTOS POR FORMA
+ */
+getQtdProdutosPorForma(formaPagamento: string): number {
+  if (!this.vendasDetalhadas?.quantidadeProdutosPorFormaPagamento) {
+    return 0;
+  }
+  return this.vendasDetalhadas.quantidadeProdutosPorFormaPagamento[formaPagamento] || 0;
 }
   
   // ✅ NAVEGAÇÃO
